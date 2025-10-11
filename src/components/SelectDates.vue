@@ -10,6 +10,7 @@
                             class="input is-primary is-fullwidth"
                             type="date"
                             name="from"
+                            v-model="dateFrom"
                         />
                     </div>
                 </div>
@@ -20,6 +21,7 @@
                             class="input is-primary is-fullwidth"
                             type="date"
                             name="to"
+                            v-model="dateTo"
                         />
                     </div>
                 </div>
@@ -28,4 +30,30 @@
     </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { ref } from "vue";
+
+// Format dates as YYYY-MM-DD for HTML5 date input
+const formatDate = (date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+};
+
+// Get the first day of the current month
+const getFirstDayOfMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+};
+
+// Get the last day of the current month
+const getLastDayOfMonth = () => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth() + 1, 0);
+};
+
+// Create reactive refs with default values
+const dateFrom = ref(formatDate(getFirstDayOfMonth()));
+const dateTo = ref(formatDate(getLastDayOfMonth()));
+</script>
