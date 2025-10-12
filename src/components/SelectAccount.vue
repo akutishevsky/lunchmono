@@ -7,10 +7,8 @@
                     <div class="label">Account</div>
                     <div class="control">
                         <div class="select is-fullwidth is-primary">
-                            <select>
-                                <option value="null">
-                                    Select Account to sync
-                                </option>
+                            <select v-model="selectedAccount">
+                                <option value="">Select Account to sync</option>
                                 <option
                                     v-for="account in accounts"
                                     :key="account.id"
@@ -18,7 +16,8 @@
                                 >
                                     {{ account.type }} • {{ account.iban }} •
                                     {{
-                                        account.maskedPan[0] || "No masked pan"
+                                        account.maskedPan?.[0] ||
+                                        "No masked pan"
                                     }}
                                     •
                                     {{ account.balance / 100 }}
@@ -36,29 +35,45 @@
 import { ref, onMounted } from "vue";
 import { getBaseUrl } from "../scripts/utils";
 
-const accounts = ref();
+const accounts = ref([]);
+const selectedAccount = ref("");
 
 onMounted(async () => {
     await setMonobankAccounts();
 });
 
 const setMonobankAccounts = async () => {
-    const baseUrl = await getBaseUrl();
-    const response = await fetch(`${baseUrl}/monobank/client-info`);
+    try {
+        const baseUrl = await getBaseUrl();
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(
-            `getMonobankAccounts error: ${errorData.error}` ||
-                "Failed to fetch client info",
-        );
+        if (!baseUrl) {
+            console.error("Base URL is not available");
+            return;
+        }
+
+        const response = await fetch(`${baseUrl}/monobank/client-info`);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || "Failed to fetch client info");
+        }
+
+        const result = await response.json();
+
+        // Ensure accounts exist and have valid data
+        const accountsData = result.accounts || [];
+
+        // Sort accounts by type in ascending order (with null safety)
+        accounts.value = accountsData.sort((a, b) => {
+            const typeA = a?.type || "";
+            const typeB = b?.type || "";
+            return typeA.localeCompare(typeB);
+        });
+
+        console.log("Sorted accounts:", accounts.value);
+    } catch (error) {
+        console.error("Error fetching accounts:", error);
+        accounts.value = [];
     }
-
-    const result = await response.json();
-
-    // Sort accounts by type in ascending order
-    accounts.value = (result.accounts || []).sort((a, b) =>
-        a.type.localeCompare(b.type),
-    );
 };
 </script>
