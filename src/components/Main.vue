@@ -7,11 +7,12 @@
 <template>
     <div class="main-container has-background">
         <div class="container">
-            <ControlPanel />
+            <ControlPanel @open-settings="openSettings" />
             <SelectDates />
             <SelectAccount />
             <Sync />
         </div>
+        <Settings :is-open="isSettingsOpen" @close="closeSettings" />
     </div>
 </template>
 
@@ -20,4 +21,17 @@ import ControlPanel from "./ControlPanel.vue";
 import SelectDates from "./SelectDates.vue";
 import SelectAccount from "./SelectAccount.vue";
 import Sync from "./Sync.vue";
+import Settings from "./Settings.vue";
+
+import { ref } from "vue";
+
+const isSettingsOpen = ref(false);
+
+const openSettings = () => {
+    isSettingsOpen.value = true;
+};
+
+const closeSettings = () => {
+    isSettingsOpen.value = false;
+};
 </script>
