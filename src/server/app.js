@@ -1,7 +1,10 @@
 import { Hono } from "hono";
 import { serve } from "@hono/node-server";
+import monobank from "./routes/monobank.js";
 
 const app = new Hono();
+
+app.route("/monobank", monobank);
 
 // Root endpoint
 app.get("/", (c) => {
