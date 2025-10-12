@@ -19,10 +19,15 @@ The application uses Electron's multi-process architecture:
 ### Embedded Server
 
 The application includes an embedded Hono HTTP server (`src/server/app.js`) that runs in the main process:
-- Started automatically when Electron initializes (main.js:43-49)
-- Runs on `http://localhost:3000`
-- Cleaned up on app quit via `before-quit` event (main.js:72-74)
-- Currently minimal with just a health check endpoint at `/`
+- Started automatically when Electron initializes (main.js:48-60)
+- Runs on `http://localhost:3000` (configurable via `SERVER_PORT` constant)
+- Port exposed to renderer via IPC handler `get-base-url`
+- Cleaned up on app quit via `before-quit` event
+- CORS enabled for renderer process communication
+- API endpoints:
+  - `/` - Health check
+  - `/monobank/client-info` - Fetch Monobank account information
+  - `/monobank/transactions/:account/:from/:to` - Fetch account transactions
 
 ### Vue Architecture
 
@@ -62,8 +67,15 @@ npm run publish
 
 ## Key Implementation Details
 
+### IPC Communication
+The preload script exposes the following methods to the renderer via `window.electronAPI`:
+- `saveTokens(tokens)` - Save encrypted API tokens
+- `loadTokens()` - Load and decrypt API tokens
+- `getBaseUrl()` - Get server base URL dynamically
+- `onServerReady(callback)` - Listen for server-ready event
+
 ### DevTools
-DevTools automatically open on launch (main.js:37). Remove this line for production builds.
+DevTools can be opened during development. Remove auto-open for production builds.
 
 ### Server Lifecycle
 The Hono server lifecycle is tightly coupled to Electron:
@@ -75,8 +87,23 @@ The Hono server lifecycle is tightly coupled to Electron:
 Components use Vue 3's Composition API with `<script setup>`:
 - **Main.vue**: Manages modal visibility state using `ref(false)` for the Settings modal
 - **ControlPanel.vue**: Emits custom events (`open-settings`) to parent component
-- **Settings.vue**: Presentational component with props and event emission pattern
-- Other components are scaffolded but not yet connected to backend functionality
+- **Settings.vue**: Presentational component with props and event emission pattern for managing API tokens (Monobank and Lunch Money)
+- **SelectAccount.vue**: Fetches and displays Monobank accounts on mount, sorted by account type
+
+### Token Storage
+Sensitive API tokens are securely stored using Electron's `safeStorage` API:
+- **Location**: `src/tokenStorage.js` - Dedicated module for token management
+- **Encryption**: Uses OS-level encryption (macOS Keychain, Windows Credential Manager, Linux Secret Service)
+- **Storage**: Encrypted tokens stored in electron-store (`config.json`)
+- **IPC Communication**: Main process handles encryption/decryption, renderer accesses via IPC
+- **Constants**: Token keys defined in `TOKENS` object (`MONO`, `LM`)
+- **Migration**: Automatically migrates plain-text tokens to encrypted format on startup
+
+### API Integration
+- **Monobank API**: Accessed via embedded Hono server routes
+- **Token retrieval**: `getDecryptedToken()` function in tokenStorage.js
+- **Error handling**: Proper error messages for missing tokens and API failures
+- **Data fetching**: Components use `window.electronAPI.getBaseUrl()` for dynamic server URL
 
 ### Styling
 Uses Bulma CSS imported globally in `src/renderer.js`. Minimal custom CSS (only Main.vue has a scoped style for full-height container).
