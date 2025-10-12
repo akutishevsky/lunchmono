@@ -1,4 +1,4 @@
-import Store from "electron-store";
+import { getDecryptedToken, TOKENS } from "./tokenStorage.js";
 
 const BASE_URL = "https://api.monobank.ua";
 const ENDPOINTS = {
@@ -6,13 +6,8 @@ const ENDPOINTS = {
     TRANSACTIONS: `${BASE_URL}/personal/statement`,
 };
 
-// Initialize electron-store instance with same config as main.js
-const store = new Store({
-    encryptionKey: "lunchmono-secret-key-change-in-production",
-});
-
 export const getClientInfo = async () => {
-    const token = getToken();
+    const token = getDecryptedToken(TOKENS.MONO);
 
     if (!token) {
         throw new Error("Monobank token not configured. Please add your token in Settings.");
@@ -45,7 +40,7 @@ export const getClientInfo = async () => {
  */
 export const getTransactions = async (account, from, to) => {
     const params = `/${account}/${from}/${to}`;
-    const token = getToken();
+    const token = getDecryptedToken(TOKENS.MONO);
 
     if (!token) {
         throw new Error("Monobank token not configured. Please add your token in Settings.");
@@ -63,8 +58,4 @@ export const getTransactions = async (account, from, to) => {
     }
 
     return response.json();
-};
-
-const getToken = () => {
-    return store.get("monobankToken", "");
 };

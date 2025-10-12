@@ -2,25 +2,14 @@ import { app, BrowserWindow, ipcMain } from "electron";
 import path from "node:path";
 import started from "electron-squirrel-startup";
 import { startServer, stopServer } from "./server/app.js";
-import Store from "electron-store";
+import {
+    saveTokens,
+    loadTokens,
+    migrateTokensToSafeStorage,
+} from "./tokenStorage.js";
 
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 720;
-
-// Initialize electron-store with encryption
-const store = new Store({
-    encryptionKey: "lunchmono-secret-key-change-in-production",
-    schema: {
-        monobankToken: {
-            type: "string",
-            default: "",
-        },
-        lunchMoneyToken: {
-            type: "string",
-            default: "",
-        },
-    },
-});
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -54,6 +43,9 @@ const createWindow = () => {
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(async () => {
+    // Migrate any existing plain-text tokens
+    migrateTokensToSafeStorage();
+
     // Start Hono server
     try {
         await startServer(3000);
@@ -88,29 +80,11 @@ app.on("before-quit", () => {
 
 // IPC handlers for token storage
 ipcMain.handle("save-tokens", async (event, tokens) => {
-    try {
-        store.set("monobankToken", tokens.monobankToken || "");
-        store.set("lunchMoneyToken", tokens.lunchMoneyToken || "");
-        return { success: true };
-    } catch (error) {
-        console.error("Error saving tokens:", error);
-        return { success: false, error: error.message };
-    }
+    return saveTokens(tokens);
 });
 
 ipcMain.handle("load-tokens", async () => {
-    try {
-        return {
-            success: true,
-            tokens: {
-                monobankToken: store.get("monobankToken", ""),
-                lunchMoneyToken: store.get("lunchMoneyToken", ""),
-            },
-        };
-    } catch (error) {
-        console.error("Error loading tokens:", error);
-        return { success: false, error: error.message };
-    }
+    return loadTokens();
 });
 
 // In this file you can include the rest of your app's specific main process
