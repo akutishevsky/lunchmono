@@ -8,9 +8,16 @@
     <div class="main-container has-background">
         <div class="container">
             <ControlPanel @open-settings="openSettings" />
-            <SelectDates v-model:date-from="dateFrom" v-model:date-to="dateTo" />
+            <SelectDates
+                v-model:date-from="dateFrom"
+                v-model:date-to="dateTo"
+            />
             <SelectAccount v-model="selectedAccount" />
-            <Sync />
+            <Sync
+                :selected-account="selectedAccount"
+                :date-from="dateFrom"
+                :date-to="dateTo"
+            />
         </div>
         <Settings :is-open="isSettingsOpen" @close="closeSettings" />
     </div>
