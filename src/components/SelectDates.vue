@@ -31,7 +31,18 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { onMounted } from "vue";
+
+// Create reactive models - defaults will be set in onMounted
+const dateFrom = defineModel("dateFrom", {
+    type: String,
+    default: ""
+});
+
+const dateTo = defineModel("dateTo", {
+    type: String,
+    default: ""
+});
 
 // Format dates as YYYY-MM-DD for HTML5 date input
 const formatDate = (date) => {
@@ -53,7 +64,13 @@ const getLastDayOfMonth = () => {
     return new Date(now.getFullYear(), now.getMonth() + 1, 0);
 };
 
-// Create reactive refs with default values
-const dateFrom = ref(formatDate(getFirstDayOfMonth()));
-const dateTo = ref(formatDate(getLastDayOfMonth()));
+// Set default values only if parent hasn't provided values
+onMounted(() => {
+    if (!dateFrom.value) {
+        dateFrom.value = formatDate(getFirstDayOfMonth());
+    }
+    if (!dateTo.value) {
+        dateTo.value = formatDate(getLastDayOfMonth());
+    }
+});
 </script>

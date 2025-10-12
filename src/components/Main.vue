@@ -8,7 +8,7 @@
     <div class="main-container has-background">
         <div class="container">
             <ControlPanel @open-settings="openSettings" />
-            <SelectDates />
+            <SelectDates v-model:date-from="dateFrom" v-model:date-to="dateTo" />
             <SelectAccount v-model="selectedAccount" />
             <Sync />
         </div>
@@ -27,6 +27,8 @@ import { ref } from "vue";
 
 const isSettingsOpen = ref(false);
 const selectedAccount = ref("");
+const dateFrom = ref("");
+const dateTo = ref("");
 
 const openSettings = () => {
     isSettingsOpen.value = true;
