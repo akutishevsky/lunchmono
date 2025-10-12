@@ -10,6 +10,9 @@ import {
 
 const DEFAULT_WIDTH = 1280;
 const DEFAULT_HEIGHT = 720;
+const SERVER_PORT = 3000;
+
+let serverPort = null;
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (started) {
@@ -37,6 +40,8 @@ const createWindow = () => {
             ),
         );
     }
+
+    return mainWindow;
 };
 
 // This method will be called when Electron has finished
@@ -48,12 +53,21 @@ app.whenReady().then(async () => {
 
     // Start Hono server
     try {
-        await startServer(3000);
+        await startServer(SERVER_PORT);
+        serverPort = SERVER_PORT;
+        console.log("Server ready, port set to:", serverPort);
     } catch (error) {
         console.error("Failed to start server:", error);
     }
 
-    createWindow();
+    const mainWindow = createWindow();
+
+    // Notify renderer when server is ready
+    if (serverPort) {
+        mainWindow.webContents.on('did-finish-load', () => {
+            mainWindow.webContents.send('server-ready', serverPort);
+        });
+    }
 
     // On OS X it's common to re-create a window in the app when the
     // dock icon is clicked and there are no other windows open.
@@ -85,6 +99,11 @@ ipcMain.handle("save-tokens", async (event, tokens) => {
 
 ipcMain.handle("load-tokens", async () => {
     return loadTokens();
+});
+
+// IPC handler to get server base URL
+ipcMain.handle("get-base-url", async () => {
+    return serverPort ? `http://localhost:${serverPort}` : null;
 });
 
 // In this file you can include the rest of your app's specific main process

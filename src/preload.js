@@ -8,4 +8,6 @@ import { contextBridge, ipcRenderer } from "electron";
 contextBridge.exposeInMainWorld("electronAPI", {
     saveTokens: (tokens) => ipcRenderer.invoke("save-tokens", tokens),
     loadTokens: () => ipcRenderer.invoke("load-tokens"),
+    getBaseUrl: () => ipcRenderer.invoke("get-base-url"),
+    onServerReady: (callback) => ipcRenderer.on("server-ready", callback),
 });
