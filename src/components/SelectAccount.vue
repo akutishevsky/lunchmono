@@ -35,8 +35,9 @@
 import { ref, onMounted } from "vue";
 import { getBaseUrl } from "../scripts/utils";
 
+const selectedAccount = defineModel({ type: String, default: "" });
+
 const accounts = ref([]);
-const selectedAccount = ref("");
 
 onMounted(async () => {
     await setMonobankAccounts();

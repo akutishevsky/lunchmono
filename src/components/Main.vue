@@ -9,7 +9,7 @@
         <div class="container">
             <ControlPanel @open-settings="openSettings" />
             <SelectDates />
-            <SelectAccount />
+            <SelectAccount v-model="selectedAccount" />
             <Sync />
         </div>
         <Settings :is-open="isSettingsOpen" @close="closeSettings" />
@@ -26,6 +26,7 @@ import Settings from "./Settings.vue";
 import { ref } from "vue";
 
 const isSettingsOpen = ref(false);
+const selectedAccount = ref("");
 
 const openSettings = () => {
     isSettingsOpen.value = true;
