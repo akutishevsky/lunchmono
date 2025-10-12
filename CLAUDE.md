@@ -27,11 +27,14 @@ The application includes an embedded Hono HTTP server (`src/server/app.js`) that
 ### Vue Architecture
 
 The renderer uses Vue 3 with the following component hierarchy:
-- `App.vue` → `Main.vue` → Four main sections:
+- `App.vue` → `Main.vue` → Five main sections:
   - `ControlPanel.vue`: Top-level controls with "Accounts mapping" and "Settings" buttons
   - `SelectDates.vue`: Date range picker (From/To inputs)
   - `SelectAccount.vue`: Account selection dropdown
   - `Sync.vue`: Transaction actions ("Show transactions", "Sync transactions")
+  - `Settings.vue`: Modal component for API token configuration (Monobank and Lunch Money)
+
+The Settings modal uses the **container/presentational pattern**: Main.vue manages the modal visibility state (`isSettingsOpen` ref) while Settings.vue is a presentational component that receives `isOpen` prop and emits a `close` event. The modal is triggered by the Settings button in ControlPanel.vue via event emission.
 
 All components use Bulma CSS framework for styling.
 
@@ -69,7 +72,11 @@ The Hono server lifecycle is tightly coupled to Electron:
 - Failure to start server logs error but doesn't prevent app launch
 
 ### Component State
-Currently all components use `<script setup>` but have no reactive state. The UI appears to be scaffolded but not yet connected to backend functionality.
+Components use Vue 3's Composition API with `<script setup>`:
+- **Main.vue**: Manages modal visibility state using `ref(false)` for the Settings modal
+- **ControlPanel.vue**: Emits custom events (`open-settings`) to parent component
+- **Settings.vue**: Presentational component with props and event emission pattern
+- Other components are scaffolded but not yet connected to backend functionality
 
 ### Styling
 Uses Bulma CSS imported globally in `src/renderer.js`. Minimal custom CSS (only Main.vue has a scoped style for full-height container).
