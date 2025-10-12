@@ -19,26 +19,40 @@
                 </div>
                 <div class="field">
                     <label class="label">Monobank API Token</label>
-                    <div class="control">
+                    <div class="control has-icons-right">
                         <input
                             v-model="monobankToken"
                             id="input-token-mono"
                             class="input"
-                            type="text"
+                            :type="showMonobankToken ? 'text' : 'password'"
                             placeholder="Monobank API Token"
                         />
+                        <span
+                            class="icon is-small is-right"
+                            style="pointer-events: auto; cursor: pointer"
+                            @click="showMonobankToken = !showMonobankToken"
+                        >
+                            <span>{{ showMonobankToken ? "🙈" : "👁️" }}</span>
+                        </span>
                     </div>
                 </div>
                 <div class="field">
                     <label class="label">Lunch Money Access Token</label>
-                    <div class="control">
+                    <div class="control has-icons-right">
                         <input
                             v-model="lunchMoneyToken"
                             id="input-token-lm"
                             class="input"
-                            type="text"
+                            :type="showLunchMoneyToken ? 'text' : 'password'"
                             placeholder="Lunch Money Access Token"
                         />
+                        <span
+                            class="icon is-small is-right"
+                            style="pointer-events: auto; cursor: pointer"
+                            @click="showLunchMoneyToken = !showLunchMoneyToken"
+                        >
+                            <span>{{ showLunchMoneyToken ? "🙈" : "👁️" }}</span>
+                        </span>
                     </div>
                 </div>
             </section>
@@ -76,6 +90,10 @@ const lunchMoneyToken = ref("");
 const isSaving = ref(false);
 const errorMessage = ref("");
 const successMessage = ref("");
+
+// Visibility toggles for password fields
+const showMonobankToken = ref(false);
+const showLunchMoneyToken = ref(false);
 
 watch(
     () => props.isOpen,
