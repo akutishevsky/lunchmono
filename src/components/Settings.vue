@@ -11,8 +11,28 @@
                 ></button>
             </header>
             <section class="modal-card-body">
-                <p>Settings content will go here...</p>
-                <!-- TODO(human): Add settings form content here -->
+                <div class="field">
+                    <label class="label">Monobank API Token</label>
+                    <div class="control">
+                        <input
+                            id="input-token-mono"
+                            class="input"
+                            type="text"
+                            placeholder="Monobank API Token"
+                        />
+                    </div>
+                </div>
+                <div class="field">
+                    <label class="label">Lunch Money Access Token</label>
+                    <div class="control">
+                        <input
+                            id="input-token-lm"
+                            class="input"
+                            type="text"
+                            placeholder="Lunch Money Access Token"
+                        />
+                    </div>
+                </div>
             </section>
             <footer class="modal-card-foot">
                 <div class="buttons">
