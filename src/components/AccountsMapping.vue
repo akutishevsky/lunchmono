@@ -94,10 +94,10 @@ const showNotification = inject("showNotification");
 
 watch(
     () => props.isOpen,
-    (isNowOpen) => {
+    async (isNowOpen) => {
         if (isNowOpen) {
             // loadTokens();
-            setMonobankAccounts();
+            await setMonobankAccounts();
         }
     },
 );
