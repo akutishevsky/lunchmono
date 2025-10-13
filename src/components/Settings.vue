@@ -76,7 +76,7 @@ const props = defineProps({
     },
 });
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "tokens-saved"]);
 
 const showNotification = inject("showNotification");
 
@@ -120,6 +120,7 @@ const saveTokens = async () => {
 
         if (result.success) {
             showNotification("Tokens saved successfully!", false);
+            emit("tokens-saved"); // Notify parent that tokens were saved
         } else {
             showNotification(result.error || "Failed to save tokens", true);
         }

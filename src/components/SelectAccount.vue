@@ -32,16 +32,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from "vue";
+import { ref, inject } from "vue";
 import { getBaseUrl } from "../scripts/utils";
 
 const selectedAccount = defineModel({ type: String, default: "" });
+const showNotification = inject("showNotification");
 
 const accounts = ref([]);
-
-onMounted(async () => {
-    await setMonobankAccounts();
-});
 
 const setMonobankAccounts = async () => {
     try {
@@ -55,6 +52,7 @@ const setMonobankAccounts = async () => {
 
         if (!response.ok) {
             const errorData = await response.json();
+            // Only show error if we're explicitly trying to fetch (not on initial mount)
             throw new Error(errorData.error || "Failed to fetch client info");
         }
 
@@ -71,6 +69,12 @@ const setMonobankAccounts = async () => {
         });
     } catch (error) {
         accounts.value = [];
+        // Silently fail - tokens might not be configured yet
     }
 };
+
+// Expose method so parent can trigger refresh
+defineExpose({
+    refreshAccounts: setMonobankAccounts,
+});
 </script>

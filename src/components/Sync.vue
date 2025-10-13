@@ -86,8 +86,12 @@ const showNotification = inject("showNotification");
 const selectedLMAsset = computed(() => {
     const mappings = accountMappings.value;
     if (!mappings) return null;
+    const mappedAssetId = mappings[props.selectedAccount];
+    if (!mappedAssetId) return null;
+
+    // Handle both string and number comparison for asset IDs
     return lunchMoneyAssets.value.find(
-        (asset) => asset.id === mappings[props.selectedAccount],
+        (asset) => String(asset.id) === String(mappedAssetId),
     );
 });
 
@@ -104,21 +108,15 @@ const CURRENCY_CODES = {
     978: "eur",
 };
 
-// Initialize
-onMounted(async () => {
-    await Promise.all([
-        fetchData("/lunchmoney/assets", lunchMoneyAssets, "assets"),
-        fetchData("/monobank/client-info", monobankAccounts, "accounts"),
-        loadAccountMappings(),
-    ]);
-});
+// Initialize - removed onMounted data fetching to avoid errors when tokens are missing
+// Data will be fetched when user explicitly requests transactions
 
 // Generic API fetch with error handling
-async function fetchData(endpoint, targetRef, dataKey = null) {
+async function fetchData(endpoint, targetRef, dataKey = null, silent = false) {
     try {
         const baseUrl = await getBaseUrl();
         if (!baseUrl) {
-            showNotification("Base URL is not available", true);
+            if (!silent) showNotification("Base URL is not available", true);
             return;
         }
 
@@ -126,16 +124,20 @@ async function fetchData(endpoint, targetRef, dataKey = null) {
         const result = await response.json();
 
         if (!response.ok) {
-            showNotification(
-                result.error || `Failed to fetch ${endpoint}`,
-                true,
-            );
+            if (!silent) {
+                showNotification(
+                    result.error || `Failed to fetch ${endpoint}`,
+                    true,
+                );
+            }
             return;
         }
 
         targetRef.value = dataKey ? result[dataKey] || [] : result;
     } catch (error) {
-        showNotification(`Error fetching ${endpoint}: ${error.message}`, true);
+        if (!silent) {
+            showNotification(`Error fetching ${endpoint}: ${error.message}`, true);
+        }
         targetRef.value = [];
     }
 }
@@ -153,6 +155,11 @@ async function loadAccountMappings() {
         showNotification(`Error loading mappings: ${error.message}`, true);
     }
 }
+
+// Expose method so parent can trigger refresh
+defineExpose({
+    refreshMappings: loadAccountMappings,
+});
 
 // Formatters
 const formatDate = (timestamp) =>
@@ -227,6 +234,13 @@ async function showTransactions() {
     }
 
     try {
+        // Fetch necessary data if not already loaded
+        await Promise.all([
+            fetchData("/lunchmoney/assets", lunchMoneyAssets, "assets"),
+            fetchData("/monobank/client-info", monobankAccounts, "accounts"),
+            loadAccountMappings(),
+        ]);
+
         const baseUrl = await getBaseUrl();
         const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
         const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);

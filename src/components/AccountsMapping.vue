@@ -103,7 +103,7 @@ const monobankAccounts = ref([]);
 const lunchMoneyAssets = ref([]);
 const accountMappings = ref({});
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(["close", "mappings-saved"]);
 const showNotification = inject("showNotification");
 
 watch(
@@ -216,6 +216,7 @@ const saveMappings = async () => {
 
         if (result.success) {
             showNotification("Account mappings saved successfully!", false);
+            emit("mappings-saved"); // Notify parent that mappings were saved
         } else {
             showNotification(
                 result.error || "Failed to save account mappings",

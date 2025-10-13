@@ -8,22 +8,26 @@ module.exports = {
   },
   rebuildConfig: {},
   makers: [
-    {
-      name: '@electron-forge/maker-squirrel',
-      config: {},
-    },
+    // Note: Squirrel maker commented out - requires Windows or Wine/Mono
+    // Uncomment when building on Windows for native installer
+    // {
+    //   name: '@electron-forge/maker-squirrel',
+    //   config: {},
+    // },
     {
       name: '@electron-forge/maker-zip',
-      platforms: ['darwin'],
+      platforms: ['darwin', 'win32', 'linux'], // ZIP works for all cross-platform builds
     },
-    {
-      name: '@electron-forge/maker-deb',
-      config: {},
-    },
-    {
-      name: '@electron-forge/maker-rpm',
-      config: {},
-    },
+    // Note: DEB/RPM makers commented out - require Linux tools (dpkg, fakeroot, rpm)
+    // Uncomment when building on Linux for native packages
+    // {
+    //   name: '@electron-forge/maker-deb',
+    //   config: {},
+    // },
+    // {
+    //   name: '@electron-forge/maker-rpm',
+    //   config: {},
+    // },
   ],
   plugins: [
     {

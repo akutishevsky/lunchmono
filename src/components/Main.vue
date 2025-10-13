@@ -21,8 +21,9 @@
                 v-model:date-from="dateFrom"
                 v-model:date-to="dateTo"
             />
-            <SelectAccount v-model="selectedAccount" />
+            <SelectAccount ref="selectAccountRef" v-model="selectedAccount" />
             <Sync
+                ref="syncRef"
                 :selected-account="selectedAccount"
                 :date-from="dateFrom"
                 :date-to="dateTo"
@@ -31,8 +32,13 @@
         <AccountsMapping
             :is-open="isAccountsMappingOpen"
             @close="closeAccountsMapping"
+            @mappings-saved="onMappingsSaved"
         />
-        <Settings :is-open="isSettingsOpen" @close="closeSettings" />
+        <Settings
+            :is-open="isSettingsOpen"
+            @close="closeSettings"
+            @tokens-saved="onTokensSaved"
+        />
     </div>
 </template>
 
@@ -52,6 +58,8 @@ const isSettingsOpen = ref(false);
 const selectedAccount = ref("");
 const dateFrom = ref("");
 const dateTo = ref("");
+const selectAccountRef = ref(null);
+const syncRef = ref(null);
 
 // Notification state
 const notificationVisible = ref(false);
@@ -92,6 +100,20 @@ const showNotification = (message, isError = false) => {
 
 const hideNotification = () => {
     notificationVisible.value = false;
+};
+
+const onTokensSaved = async () => {
+    // Refresh accounts after tokens are saved
+    if (selectAccountRef.value) {
+        await selectAccountRef.value.refreshAccounts();
+    }
+};
+
+const onMappingsSaved = async () => {
+    // Refresh mappings in Sync component after saving
+    if (syncRef.value) {
+        await syncRef.value.refreshMappings();
+    }
 };
 
 // Provide notification function to all child components
