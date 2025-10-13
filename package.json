@@ -1,7 +1,7 @@
 {
     "name": "lunchmono",
     "productName": "Lunch Mono",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "description": "Lunch Mono - Monobank to Lunch Money transaction sync",
     "main": ".vite/build/main.js",
     "scripts": {

@@ -32,7 +32,7 @@
 </template>
 
 <script setup>
-import { ref, inject } from "vue";
+import { ref, inject, onMounted } from "vue";
 import { getBaseUrl } from "../scripts/utils";
 
 const selectedAccount = defineModel({ type: String, default: "" });
@@ -72,6 +72,19 @@ const setMonobankAccounts = async () => {
         // Silently fail - tokens might not be configured yet
     }
 };
+
+// Check if tokens exist on mount and fetch accounts if they do
+onMounted(async () => {
+    try {
+        const result = await window.electronAPI.loadTokens();
+        // Only fetch accounts if Monobank token exists
+        if (result.tokens?.monobankToken) {
+            await setMonobankAccounts();
+        }
+    } catch (error) {
+        // Silently fail if tokens can't be loaded
+    }
+});
 
 // Expose method so parent can trigger refresh
 defineExpose({

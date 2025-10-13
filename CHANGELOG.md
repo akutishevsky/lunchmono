@@ -5,6 +5,19 @@ All notable changes to Lunch Mono will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.1] - 2025-10-13
+
+### Fixed
+- **Account Loading on Restart** - Fixed issue where accounts were not loaded on app restart even when API tokens were present
+- **Account Mappings Synchronization** - Fixed bug where saved account mappings were not immediately available for transaction sync
+- **Asset ID Comparison** - Added type-safe comparison for Lunch Money asset IDs to handle both string and number types correctly
+- **Startup Error Messages** - Removed error notifications on first startup when tokens are not yet configured
+
+### Changed
+- SelectAccount component now checks for existing tokens on mount and loads accounts automatically if tokens are present
+- Sync component now refreshes mappings immediately after they are saved in the Accounts Mapping modal
+- Improved silent error handling for better first-time user experience
+
 ## [1.0.0] - 2025-10-13
 
 ### Added
@@ -58,4 +71,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transaction sync preserves original descriptions and timestamps
 - All sensitive data is encrypted and stored locally
 
+[1.0.1]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.0.1
 [1.0.0]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.0.0
