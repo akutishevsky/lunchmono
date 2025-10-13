@@ -233,7 +233,6 @@ async function showTransactions() {
         const response = await fetch(url);
         if (!response.ok) {
             const errorData = await response.json();
-            console.error("Error fetching transactions:", errorData);
             showNotification("Failed to fetch transactions", true);
             return;
         }
@@ -289,7 +288,6 @@ async function syncTransactions() {
         });
 
         const responseText = await response.text();
-        console.log("Sync response:", responseText);
 
         if (!response.ok) {
             let errorMessage = "Failed to sync transactions";

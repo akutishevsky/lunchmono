@@ -36,12 +36,8 @@ export const startServer = (port = 3000) => {
                 port: port,
             });
 
-            console.log(
-                `🚀 Hono server is running on http://localhost:${port}`,
-            );
             resolve(server);
         } catch (error) {
-            console.error("Failed to start Hono server:", error);
             reject(error);
         }
     });
@@ -52,7 +48,6 @@ export const startServer = (port = 3000) => {
  */
 export const stopServer = () => {
     if (server) {
-        console.log("Stopping Hono server...");
         server.close();
         server = null;
     }

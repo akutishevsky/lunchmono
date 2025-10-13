@@ -57,9 +57,8 @@ app.whenReady().then(async () => {
     try {
         await startServer(SERVER_PORT);
         serverPort = SERVER_PORT;
-        console.log("Server ready, port set to:", serverPort);
     } catch (error) {
-        console.error("Failed to start server:", error);
+        // Server failed to start
     }
 
     const mainWindow = createWindow();

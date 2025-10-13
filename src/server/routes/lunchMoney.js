@@ -23,7 +23,6 @@ router.post("/transactions", async (c) => {
         const response = await lunchMoney.insertTransactions(transactions);
         return c.json(response, 200);
     } catch (error) {
-        console.error("Error inserting transactions:", error);
         return c.json({ error: error.message }, 500);
     }
 });

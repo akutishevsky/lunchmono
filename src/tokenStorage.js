@@ -19,15 +19,11 @@ const ensureValidConfigFile = () => {
             JSON.parse(content);
         } catch (error) {
             // File is corrupted/encrypted with old method, back it up and start fresh
-            console.warn(
-                "Detected corrupted config file, creating backup and starting fresh...",
-            );
             const backupPath = path.join(
                 app.getPath("userData"),
                 `config.json.backup.${Date.now()}`,
             );
             fs.renameSync(configPath, backupPath);
-            console.log(`Old config backed up to: ${backupPath}`);
         }
     }
 };
@@ -46,7 +42,6 @@ const store = new Store();
 export const encryptToken = (token) => {
     if (!token) return "";
     if (!safeStorage.isEncryptionAvailable()) {
-        console.warn("Encryption not available, storing token in plain text");
         return token;
     }
     const encrypted = safeStorage.encryptString(token);
@@ -61,14 +56,12 @@ export const encryptToken = (token) => {
 export const decryptToken = (encryptedToken) => {
     if (!encryptedToken) return "";
     if (!safeStorage.isEncryptionAvailable()) {
-        console.warn("Encryption not available, returning token as-is");
         return encryptedToken;
     }
     try {
         const buffer = Buffer.from(encryptedToken, "base64");
         return safeStorage.decryptString(buffer);
     } catch (error) {
-        console.error("Failed to decrypt token:", error);
         return "";
     }
 };
@@ -98,7 +91,6 @@ export const saveTokens = (tokens) => {
 
         return { success: true };
     } catch (error) {
-        console.error("Error saving tokens:", error);
         return { success: false, error: error.message };
     }
 };
@@ -120,7 +112,6 @@ export const loadTokens = () => {
             },
         };
     } catch (error) {
-        console.error("Error loading tokens:", error);
         return { success: false, error: error.message };
     }
 };
@@ -144,16 +135,14 @@ export const migrateTokensToSafeStorage = () => {
         };
 
         if (monobankToken && !isBase64(monobankToken)) {
-            console.log("Migrating Monobank token to safeStorage...");
             store.set(TOKENS.MONO, encryptToken(monobankToken));
         }
 
         if (lunchMoneyToken && !isBase64(lunchMoneyToken)) {
-            console.log("Migrating Lunch Money token to safeStorage...");
             store.set(TOKENS.LM, encryptToken(lunchMoneyToken));
         }
     } catch (error) {
-        console.error("Token migration failed:", error);
+        // Silent fail for migration
     }
 };
 
@@ -171,7 +160,6 @@ export const saveAccountMappings = (mappings) => {
         store.set(ACCOUNT_MAPPINGS_KEY, mappings);
         return { success: true };
     } catch (error) {
-        console.error("Error saving account mappings:", error);
         return { success: false, error: error.message };
     }
 };
@@ -188,7 +176,6 @@ export const loadAccountMappings = () => {
             mappings: mappings,
         };
     } catch (error) {
-        console.error("Error loading account mappings:", error);
         return { success: false, error: error.message, mappings: {} };
     }
 };

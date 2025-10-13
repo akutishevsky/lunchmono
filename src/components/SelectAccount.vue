@@ -48,7 +48,6 @@ const setMonobankAccounts = async () => {
         const baseUrl = await getBaseUrl();
 
         if (!baseUrl) {
-            console.error("Base URL is not available");
             return;
         }
 
@@ -70,10 +69,7 @@ const setMonobankAccounts = async () => {
             const typeB = b?.type || "";
             return typeA.localeCompare(typeB);
         });
-
-        console.log("Sorted accounts:", accounts.value);
     } catch (error) {
-        console.error("Error fetching accounts:", error);
         accounts.value = [];
     }
 };

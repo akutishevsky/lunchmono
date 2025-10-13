@@ -29,8 +29,6 @@ export const insertTransactions = async (transactions) => {
         skip_balance_update: false,
     });
 
-    console.log("Inserting transactions:", body);
-
     const response = await fetch(ENDPOINTS.INSERT, {
         method: "POST",
         headers: {
@@ -41,6 +39,5 @@ export const insertTransactions = async (transactions) => {
     });
 
     const responseBody = await response.json();
-    console.log("Lunch Money response:", responseBody);
     return responseBody;
 };

@@ -8,7 +8,6 @@ router.get("/client-info", async (c) => {
         const result = await monobank.getClientInfo();
         return c.json(result, 200);
     } catch (error) {
-        console.error("Error fetching client info:", error);
         return c.json(
             {
                 error: error.message || "Failed to fetch client info",
@@ -25,7 +24,6 @@ router.get("/transactions/:account/:from/:to", async (c) => {
         const result = await monobank.getTransactions(account, from, to);
         return c.json(result, 200);
     } catch (error) {
-        console.error("Error fetching transactions:", error);
         return c.json(
             {
                 error: error.message || "Failed to fetch transactions",
