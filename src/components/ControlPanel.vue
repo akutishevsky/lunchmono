@@ -1,7 +1,14 @@
+<style scoped>
+img {
+    width: 5rem;
+    height: auto;
+}
+</style>
+
 <template>
     <div class="block pt-5">
         <div class="box is-flex is-justify-content-space-between">
-            <h2 class="title is-2 m-0">Lunch Mono</h2>
+            <div><img src="/icon.png" alt="Lunch Mono icon" /></div>
             <div class="buttons is-right">
                 <button class="button" @click="openAccountsMapping">
                     💳 Accounts mapping
