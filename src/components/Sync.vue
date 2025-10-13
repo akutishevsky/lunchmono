@@ -192,7 +192,9 @@ const isFopAccount = () => selectedMonobankAccount.value?.type === "fop";
 const calculateAmount = (transaction) => {
     const asset = selectedLMAsset.value;
     if (!asset) {
-        throw new Error("Lunch Money asset not found for selected account");
+        throw new Error(
+            "Lunch Money asset not found for selected account. Please, add it in the Accounts Mapping.",
+        );
     }
 
     const transactionCurrency = getCurrency(transaction);
