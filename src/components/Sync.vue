@@ -39,40 +39,55 @@ const props = defineProps({
     },
 });
 
-const showTransactions = async () => {
-    console.log("Selected Account:", props.selectedAccount);
-    console.log("Date From:", props.dateFrom);
-    console.log("Date To:", props.dateTo);
+/**
+ * Convert date string to Unix timestamp (seconds)
+ * @param {string} dateString - Date string in YYYY-MM-DD format
+ * @param {number} offsetDays - Number of days to add/subtract
+ * @returns {number} Unix timestamp in seconds
+ */
+const dateToUnixTimestamp = (dateString, offsetDays = 0) => {
+    const dateObj = new Date(dateString);
+    if (offsetDays !== 0) {
+        dateObj.setDate(dateObj.getDate() + offsetDays);
+    }
+    return Math.floor(dateObj.getTime() / 1000);
+};
 
+/**
+ * Fetch transactions from Monobank API
+ * @param {string} accountId - Account identifier
+ * @param {number} fromTimestamp - Start date Unix timestamp
+ * @param {number} toTimestamp - End date Unix timestamp
+ * @returns {Promise<Object|null>} Transaction data or null on error
+ */
+const fetchTransactions = async (accountId, fromTimestamp, toTimestamp) => {
     const baseUrl = await getBaseUrl();
+    const url = `${baseUrl}/monobank/transactions/${accountId}/${fromTimestamp}/${toTimestamp}`;
 
-    // Convert date strings to Date objects, then to Unix timestamps (seconds)
-    const dateFromObj = new Date(props.dateFrom);
-    const dateFromTimestamp = Math.floor(dateFromObj.getTime() / 1000);
-
-    // Add 1 day to dateTo to include the entire end date
-    const dateToObj = new Date(props.dateTo);
-    dateToObj.setDate(dateToObj.getDate() + 1);
-    const dateToTimestamp = Math.floor(dateToObj.getTime() / 1000);
-
-    console.log(
-        "Fetching transactions from:",
-        dateFromTimestamp,
-        "to:",
-        dateToTimestamp,
-    );
-
-    const response = await fetch(
-        `${baseUrl}/monobank/transactions/${props.selectedAccount}/${dateFromTimestamp}/${dateToTimestamp}`,
-    );
+    const response = await fetch(url);
 
     if (!response.ok) {
         const errorData = await response.json();
         console.error("Error fetching transactions:", errorData);
-        return;
+        return null;
     }
 
-    const transactions = await response.json();
-    console.log("Transactions:", transactions);
+    return await response.json();
+};
+
+const showTransactions = async () => {
+    // Convert dates to Unix timestamps (add 1 day to end date for inclusive range)
+    const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
+    const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
+
+    const transactions = await fetchTransactions(
+        props.selectedAccount,
+        fromTimestamp,
+        toTimestamp,
+    );
+
+    if (transactions) {
+        console.log("Transactions:", transactions);
+    }
 };
 </script>
