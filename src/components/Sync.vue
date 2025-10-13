@@ -67,169 +67,153 @@
 </template>
 
 <script setup>
-import { ref, inject, onMounted } from "vue";
+import { ref, inject, onMounted, computed } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 
 const props = defineProps({
-    selectedAccount: {
-        type: String,
-        default: "",
-    },
-    dateFrom: {
-        type: String,
-        default: "",
-    },
-    dateTo: {
-        type: String,
-        default: "",
-    },
+    selectedAccount: { type: String, default: "" },
+    dateFrom: { type: String, default: "" },
+    dateTo: { type: String, default: "" },
 });
 
+// State
 const transactions = ref([]);
 const lunchMoneyAssets = ref([]);
 const monobankAccounts = ref([]);
 const showNotification = inject("showNotification");
 
-onMounted(async () => {
-    await setLunchMoneyAssets();
-    await setMonobankAccounts();
+// Computed
+const selectedLMAsset = computed(() => {
+    const mappings = accountMappings.value;
+    if (!mappings) return null;
+    return lunchMoneyAssets.value.find(
+        (asset) => asset.id === mappings[props.selectedAccount],
+    );
 });
 
-/**
- * Convert date string to Unix timestamp (seconds)
- * @param {string} dateString - Date string in YYYY-MM-DD format
- * @param {number} offsetDays - Number of days to add/subtract
- * @returns {number} Unix timestamp in seconds
- */
-const dateToUnixTimestamp = (dateString, offsetDays = 0) => {
-    const dateObj = new Date(dateString);
-    if (offsetDays !== 0) {
-        dateObj.setDate(dateObj.getDate() + offsetDays);
-    }
-    return Math.floor(dateObj.getTime() / 1000);
+const selectedMonobankAccount = computed(() =>
+    monobankAccounts.value.find((acc) => acc.id === props.selectedAccount),
+);
+
+const accountMappings = ref(null);
+
+// Currency mapping
+const CURRENCY_CODES = {
+    980: "uah",
+    840: "usd",
+    978: "eur",
 };
 
-/**
- * Fetch transactions from Monobank API
- * @param {string} accountId - Account identifier
- * @param {number} fromTimestamp - Start date Unix timestamp
- * @param {number} toTimestamp - End date Unix timestamp
- * @returns {Promise<Object|null>} Transaction data or null on error
- */
-const fetchTransactions = async (accountId, fromTimestamp, toTimestamp) => {
-    const baseUrl = await getBaseUrl();
-    const url = `${baseUrl}/monobank/transactions/${accountId}/${fromTimestamp}/${toTimestamp}`;
+// Initialize
+onMounted(async () => {
+    await Promise.all([
+        fetchData("/lunchmoney/assets", lunchMoneyAssets, "assets"),
+        fetchData("/monobank/client-info", monobankAccounts, "accounts"),
+        loadAccountMappings(),
+    ]);
+});
 
-    const response = await fetch(url);
+// Generic API fetch with error handling
+async function fetchData(endpoint, targetRef, dataKey = null) {
+    try {
+        const baseUrl = await getBaseUrl();
+        if (!baseUrl) {
+            showNotification("Base URL is not available", true);
+            return;
+        }
 
-    if (!response.ok) {
-        const errorData = await response.json();
-        console.error("Error fetching transactions:", errorData);
-        return null;
+        const response = await fetch(`${baseUrl}${endpoint}`);
+        const result = await response.json();
+
+        if (!response.ok) {
+            showNotification(
+                result.error || `Failed to fetch ${endpoint}`,
+                true,
+            );
+            return;
+        }
+
+        targetRef.value = dataKey ? result[dataKey] || [] : result;
+    } catch (error) {
+        showNotification(`Error fetching ${endpoint}: ${error.message}`, true);
+        targetRef.value = [];
     }
+}
 
-    return await response.json();
-};
+// Load account mappings
+async function loadAccountMappings() {
+    try {
+        const result = await window.electronAPI.loadAccountMappings();
+        if (result.success) {
+            accountMappings.value = result.mappings;
+        } else {
+            showNotification(result.error || "Failed to load mappings", true);
+        }
+    } catch (error) {
+        showNotification(`Error loading mappings: ${error.message}`, true);
+    }
+}
 
-/**
- * Format Unix timestamp to readable date string
- * @param {number} timestamp - Unix timestamp in seconds
- * @returns {string} Formatted date string
- */
-const formatDate = (timestamp) => {
-    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+// Formatters
+const formatDate = (timestamp) =>
+    new Date(timestamp * 1000).toLocaleDateString("en-US", {
         year: "numeric",
         month: "short",
         day: "numeric",
         hour: "2-digit",
         minute: "2-digit",
     });
+
+const formatAmount = (amount) => (amount / 100).toFixed(2);
+
+const dateToUnixTimestamp = (dateString, offsetDays = 0) => {
+    const date = new Date(dateString);
+    if (offsetDays) date.setDate(date.getDate() + offsetDays);
+    return Math.floor(date.getTime() / 1000);
 };
 
-/**
- * Format amount from cents to currency
- * @param {number} amount - Amount in cents
- * @returns {string} Formatted amount
- */
-const formatAmount = (amount) => {
-    return (amount / 100).toFixed(2);
-};
-
-const getAccountMappings = async () => {
-    try {
-        const result = await window.electronAPI.loadAccountMappings();
-
-        if (result.success) {
-            return result.mappings;
-        } else {
-            showNotification(
-                result.error || "Failed to load account mappings",
-                true,
-            );
-        }
-    } catch (error) {
-        showNotification(`Error loading mappings: ${error.message}`, true);
+// Currency helpers
+const getCurrency = (transaction) => {
+    if (!transaction?.currencyCode) {
+        throw new Error("Transaction currencyCode is missing");
     }
-};
-
-const setLunchMoneyAssets = async () => {
-    try {
-        const baseUrl = await getBaseUrl();
-
-        if (!baseUrl) {
-            showNotification("Base URL is not available", true);
-            return;
-        }
-
-        const response = await fetch(`${baseUrl}/lunchmoney/assets`);
-        const result = await response.json();
-
-        if (!response.ok) {
-            showNotification(
-                result.error || "Failed to fetch Lunch Money Assets",
-                true,
-            );
-            return;
-        }
-
-        const assets = result.assets || [];
-
-        lunchMoneyAssets.value = assets;
-    } catch (error) {
-        showNotification(`Error fetching assets: ${error}`, true);
-        lunchMoneyAssets.value = [];
+    const currency = CURRENCY_CODES[transaction.currencyCode];
+    if (!currency) {
+        throw new Error(
+            `Unsupported currency code: ${transaction.currencyCode}`,
+        );
     }
+    return currency;
 };
 
-const setMonobankAccounts = async () => {
-    try {
-        const baseUrl = await getBaseUrl();
+const isFopAccount = () => selectedMonobankAccount.value?.type === "fop";
 
-        if (!baseUrl) {
-            showNotification("Base URL is not available", true);
-            return;
-        }
-
-        const response = await fetch(`${baseUrl}/monobank/client-info`);
-        const result = await response.json();
-
-        if (!response.ok) {
-            showNotification(
-                result.error || "Failed to fetch Monobank accounts",
-                true,
-            );
-            return;
-        }
-
-        monobankAccounts.value = result.accounts || [];
-    } catch (error) {
-        showNotification(`Error fetching Monobank accounts: ${error}`, true);
-        monobankAccounts.value = [];
+// Transaction amount calculation
+const calculateAmount = (transaction) => {
+    const asset = selectedLMAsset.value;
+    if (!asset) {
+        throw new Error("Lunch Money asset not found for selected account");
     }
+
+    const transactionCurrency = getCurrency(transaction);
+    const useOperationAmount = asset.currency !== transactionCurrency;
+
+    // For FOP accounts, check if asset currency is USD
+    if (isFopAccount()) {
+        return formatAmount(
+            asset.currency === "usd"
+                ? transaction.amount
+                : transaction.operationAmount,
+        );
+    }
+
+    return formatAmount(
+        useOperationAmount ? transaction.operationAmount : transaction.amount,
+    );
 };
 
-const showTransactions = async () => {
-    // Validate inputs
+// Fetch and display Monobank transactions
+async function showTransactions() {
     if (!props.selectedAccount) {
         showNotification("Please select an account first", true);
         return;
@@ -240,180 +224,91 @@ const showTransactions = async () => {
         return;
     }
 
-    // Convert dates to Unix timestamps (add 1 day to end date for inclusive range)
-    const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
-    const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
-
-    const fetchedTransactions = await fetchTransactions(
-        props.selectedAccount,
-        fromTimestamp,
-        toTimestamp,
-    );
-
-    if (fetchedTransactions) {
-        transactions.value = fetchedTransactions;
-        showNotification(
-            `Successfully loaded ${fetchedTransactions.length} transactions`,
-            false,
-        );
-    } else {
-        showNotification(
-            "Failed to fetch transactions. Please try again.",
-            true,
-        );
-    }
-};
-
-const syncTransactions = async () => {
     try {
         const baseUrl = await getBaseUrl();
+        const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
+        const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
+        const url = `${baseUrl}/monobank/transactions/${props.selectedAccount}/${fromTimestamp}/${toTimestamp}`;
 
+        const response = await fetch(url);
+        if (!response.ok) {
+            const errorData = await response.json();
+            console.error("Error fetching transactions:", errorData);
+            showNotification("Failed to fetch transactions", true);
+            return;
+        }
+
+        transactions.value = await response.json();
+        showNotification(
+            `Successfully loaded ${transactions.value.length} transactions`,
+            false,
+        );
+    } catch (error) {
+        showNotification(`Error: ${error.message}`, true);
+    }
+}
+
+// Build Lunch Money transaction payload
+function buildTransactionPayload(transaction) {
+    return {
+        date: new Date(transaction.time * 1000).toISOString(),
+        amount: calculateAmount(transaction),
+        payee: transaction.description?.slice(0, 140) || "",
+        currency: getCurrency(transaction),
+        asset_id: selectedLMAsset.value?.id,
+        notes: transaction.description,
+        category_id: null,
+        external_id: null,
+        recurring_id: null,
+        status: "uncleared",
+        tags: null,
+    };
+}
+
+// Sync transactions to Lunch Money
+async function syncTransactions() {
+    if (transactions.value.length === 0) {
+        showNotification("Please load transactions first", true);
+        return;
+    }
+
+    try {
+        const baseUrl = await getBaseUrl();
         if (!baseUrl) {
             showNotification("Base URL is not available", true);
             return;
         }
 
-        if (transactions.value.length === 0) {
-            showNotification("Select the dates and Account first.", true);
-            return;
-        }
-
-        const payload = [];
-        await composePayload(payload);
+        // Build payload for all transactions
+        const payload = transactions.value.map(buildTransactionPayload);
 
         const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {
             method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-            },
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ transactions: payload }),
         });
 
         const responseText = await response.text();
-        console.log("Raw response:", responseText);
+        console.log("Sync response:", responseText);
 
         if (!response.ok) {
             let errorMessage = "Failed to sync transactions";
             try {
                 const errorData = JSON.parse(responseText);
                 errorMessage = errorData.error || errorMessage;
-            } catch (e) {
+            } catch {
                 errorMessage = responseText || errorMessage;
             }
             showNotification(errorMessage, true);
             return;
         }
 
-        let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch (e) {
-            showNotification(
-                `Server returned invalid JSON: ${responseText}`,
-                true,
-            );
-            return;
-        }
-
         showNotification(
-            `Successfully inserted ${payload.length} transactions`,
+            `Successfully synced ${payload.length} transactions`,
             false,
         );
     } catch (error) {
-        showNotification(`Error syncing transactions: ${error.message}`, true);
+        showNotification(`Error syncing: ${error.message}`, true);
     }
-};
-
-const composePayload = async (payload) => {
-    const payloadItems = await Promise.all(
-        transactions.value.map(async (trx) => ({
-            date: new Date(trx.time * 1000).toISOString(),
-            amount: await getAmount(trx),
-            payee: trx.description ? trx.description.slice(0, 140) : "",
-            currency: getCurrency(trx),
-            asset_id: await getAssetId(),
-            notes: trx.description,
-            category_id: null,
-            external_id: null,
-            recurring_id: null,
-            status: "uncleared",
-            tags: null,
-        })),
-    );
-
-    payload.push(...payloadItems);
-};
-
-const getAmount = async (t) => {
-    const accountMappings = await getAccountMappings();
-
-    const lunchMoneyAsset = lunchMoneyAssets.value.find(
-        (asset) => asset.id === accountMappings[props.selectedAccount],
-    );
-
-    if (!lunchMoneyAsset) {
-        throw new Error("Lunch Money asset not found for selected account");
-    }
-
-    if (!isFop()) {
-        return lunchMoneyAsset.currency === getCurrency(t)
-            ? (t.amount / 100).toFixed(2)
-            : (t.operationAmount / 100).toFixed(2);
-    } else {
-        return (await getLMAccountCurrency()) === "usd"
-            ? (t.amount / 100).toFixed(2)
-            : (t.operationAmount / 100).toFixed(2);
-    }
-};
-
-const getCurrency = (t) => {
-    if (!t || !t.currencyCode) {
-        throw new Error("Transaction object or currencyCode is undefined.");
-    }
-
-    let currency;
-    switch (t.currencyCode) {
-        case 980:
-            currency = "uah";
-            break;
-        case 840:
-            currency = "usd";
-            break;
-        case 978:
-            currency = "eur";
-            break;
-        default:
-            throw new Error(`Unsupported currency code: ${t.currencyCode}`);
-    }
-    return currency;
-};
-
-const getLMAccountCurrency = async () => {
-    const accountMappings = await getAccountMappings();
-    const lunchMoneyAsset = lunchMoneyAssets.value.find(
-        (asset) => asset.id === accountMappings[props.selectedAccount],
-    );
-
-    return lunchMoneyAsset?.currency;
-};
-
-const isFop = () => {
-    try {
-        const account = monobankAccounts.value.find(
-            (acc) => acc.id === props.selectedAccount,
-        );
-        return account?.type === "fop";
-    } catch (error) {
-        throw new Error(error.message);
-    }
-};
-
-const getAssetId = async () => {
-    const accountMappings = await getAccountMappings();
-    const lunchMoneyAsset = lunchMoneyAssets.value.find(
-        (asset) => asset.id === accountMappings[props.selectedAccount],
-    );
-
-    return lunchMoneyAsset?.id;
-};
+}
 </script>
