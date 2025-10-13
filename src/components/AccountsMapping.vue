@@ -49,9 +49,17 @@
                         <div class="label">Lunch Money Asset</div>
                         <div class="control">
                             <div class="select is-fullwidth is-primary">
-                                <select>
-                                    <option value="">
-                                        Select Account to sync
+                                <select v-model="selectedAccount">
+                                    <option value="">None</option>
+                                    <option
+                                        v-for="lunchMoneyAsset in lunchMoneyAssets"
+                                        :key="lunchMoneyAsset.id"
+                                        :value="lunchMoneyAsset.id"
+                                    >
+                                        {{ lunchMoneyAsset.display_name }} •
+                                        {{ lunchMoneyAsset.currency }} •
+                                        {{ lunchMoneyAsset.institution_name }} •
+                                        {{ lunchMoneyAsset.balance }}
                                     </option>
                                 </select>
                             </div>
@@ -88,6 +96,7 @@ const props = defineProps({
 
 const isSaving = ref(false);
 const monobankAccounts = ref([]);
+const lunchMoneyAssets = ref([]);
 
 const emit = defineEmits(["close"]);
 const showNotification = inject("showNotification");
@@ -98,6 +107,7 @@ watch(
         if (isNowOpen) {
             // loadTokens();
             await setMonobankAccounts();
+            await setLunchMoneyAssets();
         }
     },
 );
@@ -135,6 +145,36 @@ const setMonobankAccounts = async () => {
     } catch (error) {
         showNotification(`Error fetching accounts: + ${error}`, true);
         monobankAccounts.value = [];
+    }
+};
+
+const setLunchMoneyAssets = async () => {
+    try {
+        const baseUrl = await getBaseUrl();
+
+        if (!baseUrl) {
+            showNotification("Base URL is not available", true);
+            return;
+        }
+
+        const response = await fetch(`${baseUrl}/lunchmoney/assets`);
+
+        if (!response.ok) {
+            const errorData = await response.json();
+            showNotification(
+                errorData.error || "Failed to fetch Lunch Money Assets",
+                true,
+            );
+        }
+
+        const result = await response.json();
+
+        const assets = result.assets || [];
+
+        lunchMoneyAssets.value = assets;
+    } catch (error) {
+        showNotification(`Error fetching accounts: + ${error}`, true);
+        lunchMoneyAssets.value = [];
     }
 };
 
