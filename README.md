@@ -24,7 +24,7 @@
 
 ## 📖 Documentation
 
-- **[User Guide](./USER_GUIDE.md)** - Comprehensive setup and usage instructions
+- **[User Guide](./docs/user-guide.md)** - Comprehensive setup and usage instructions
 - **[Changelog](./CHANGELOG.md)** - Version history and release notes
 - **[Releases](https://github.com/akutishevsky/lunchmono/releases)** - Download the latest version
 
