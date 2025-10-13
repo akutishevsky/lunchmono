@@ -4,6 +4,7 @@ const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 module.exports = {
   packagerConfig: {
     asar: true,
+    icon: './build/icon', // Electron Forge automatically appends the correct extension (.icns, .ico, .png)
   },
   rebuildConfig: {},
   makers: [
