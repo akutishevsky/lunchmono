@@ -2,6 +2,7 @@ import { Hono } from "hono";
 import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import monobank from "./routes/monobank.js";
+import lunchMoney from "./routes/lunchMoney.js";
 
 const app = new Hono();
 
@@ -9,6 +10,7 @@ const app = new Hono();
 app.use("/*", cors());
 
 app.route("/monobank", monobank);
+app.route("/lunchmoney", lunchMoney);
 
 // Root endpoint
 app.get("/", (c) => {
