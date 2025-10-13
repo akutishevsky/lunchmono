@@ -17,11 +17,53 @@
                     </button>
                 </div>
             </div>
+
+            <div v-if="transactions.length > 0" class="mt-5">
+                <h4 class="title is-6 has-text-centered">
+                    Monobank transactions for {{ props.dateFrom }} -
+                    {{ props.dateTo }}
+                </h4>
+                <div class="table-container">
+                    <table
+                        class="table is-fullwidth is-striped is-hoverable is-bordered"
+                    >
+                        <thead>
+                            <tr>
+                                <th>Date</th>
+                                <th>Description</th>
+                                <th>Amount</th>
+                                <th>Balance</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr
+                                v-for="transaction in transactions"
+                                :key="transaction.id"
+                            >
+                                <td>{{ formatDate(transaction.time) }}</td>
+                                <td>{{ transaction.description }}</td>
+                                <td
+                                    :class="
+                                        transaction.amount > 0
+                                            ? 'has-text-success'
+                                            : 'has-text-danger'
+                                    "
+                                >
+                                    {{ transaction.amount > 0 ? "+" : "" }}
+                                    {{ formatAmount(transaction.amount) }}
+                                </td>
+                                <td>{{ formatAmount(transaction.balance) }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
         </div>
     </div>
 </template>
 
 <script setup>
+import { ref } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 
 const props = defineProps({
@@ -38,6 +80,8 @@ const props = defineProps({
         default: "",
     },
 });
+
+const transactions = ref([]);
 
 /**
  * Convert date string to Unix timestamp (seconds)
@@ -75,19 +119,43 @@ const fetchTransactions = async (accountId, fromTimestamp, toTimestamp) => {
     return await response.json();
 };
 
+/**
+ * Format Unix timestamp to readable date string
+ * @param {number} timestamp - Unix timestamp in seconds
+ * @returns {string} Formatted date string
+ */
+const formatDate = (timestamp) => {
+    return new Date(timestamp * 1000).toLocaleDateString("en-US", {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+    });
+};
+
+/**
+ * Format amount from cents to currency
+ * @param {number} amount - Amount in cents
+ * @returns {string} Formatted amount
+ */
+const formatAmount = (amount) => {
+    return (amount / 100).toFixed(2);
+};
+
 const showTransactions = async () => {
     // Convert dates to Unix timestamps (add 1 day to end date for inclusive range)
     const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
     const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
 
-    const transactions = await fetchTransactions(
+    const fetchedTransactions = await fetchTransactions(
         props.selectedAccount,
         fromTimestamp,
         toTimestamp,
     );
 
-    if (transactions) {
-        console.log("Transactions:", transactions);
+    if (fetchedTransactions) {
+        transactions.value = fetchedTransactions;
     }
 };
 </script>
