@@ -12,7 +12,10 @@
                     </button>
                 </div>
                 <div class="column">
-                    <button class="button is-fullwidth">
+                    <button
+                        class="button is-fullwidth"
+                        @click="syncTransactions"
+                    >
                         🔄 Sync transactions
                     </button>
                 </div>
@@ -64,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, inject } from "vue";
+import { ref, inject, onMounted } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 
 const props = defineProps({
@@ -83,7 +86,12 @@ const props = defineProps({
 });
 
 const transactions = ref([]);
+const lunchMoneyAssets = ref([]);
 const showNotification = inject("showNotification");
+
+onMounted(async () => {
+    await setLunchMoneyAssets();
+});
 
 /**
  * Convert date string to Unix timestamp (seconds)
@@ -145,6 +153,52 @@ const formatAmount = (amount) => {
     return (amount / 100).toFixed(2);
 };
 
+const getAccountMappings = async () => {
+    try {
+        const result = await window.electronAPI.loadAccountMappings();
+
+        if (result.success) {
+            return result.mappings;
+        } else {
+            showNotification(
+                result.error || "Failed to load account mappings",
+                true,
+            );
+        }
+    } catch (error) {
+        showNotification(`Error loading mappings: ${error.message}`, true);
+    }
+};
+
+const setLunchMoneyAssets = async () => {
+    try {
+        const baseUrl = await getBaseUrl();
+
+        if (!baseUrl) {
+            showNotification("Base URL is not available", true);
+            return;
+        }
+
+        const response = await fetch(`${baseUrl}/lunchmoney/assets`);
+        const result = await response.json();
+
+        if (!response.ok) {
+            showNotification(
+                result.error || "Failed to fetch Lunch Money Assets",
+                true,
+            );
+            return;
+        }
+
+        const assets = result.assets || [];
+
+        lunchMoneyAssets.value = assets;
+    } catch (error) {
+        showNotification(`Error fetching assets: ${error}`, true);
+        lunchMoneyAssets.value = [];
+    }
+};
+
 const showTransactions = async () => {
     // Validate inputs
     if (!props.selectedAccount) {
@@ -178,6 +232,94 @@ const showTransactions = async () => {
             "Failed to fetch transactions. Please try again.",
             true,
         );
+    }
+};
+
+const syncTransactions = async () => {
+    try {
+        if (transactions.value.length === 0) {
+            showNotification("Select the dates and Account first.", true);
+        }
+
+        const payload = [];
+        transactions.value.forEach(async (trx) => {
+            console.log(await getAmount(trx));
+            // payload.push({
+            //     date: new Date(t.time * 1000).toISOString(),
+            //     amount: getAmount(cmp, t),
+            //     payee: t.description ? t.description.slice(0, 140) : "",
+            //     currency: getCurrency(cmp, t),
+            //     asset_id: getAssetId(cmp),
+            //     notes: t.description,
+            //     category_id: null,
+            //     external_id: null,
+            //     recurring_id: null,
+            //     status: "uncleared",
+            //     tags: null,
+            // });
+        });
+    } catch (error) {
+        showNotification(error, true);
+    }
+};
+
+const getAmount = async (t) => {
+    const accountMappings = await getAccountMappings();
+
+    const lunchMoneyAsset = lunchMoneyAssets.value.filter(
+        (asset) => asset.id === accountMappings[props.selectedAccount.id],
+    );
+
+    if (!isFop()) {
+        return lunchMoneyAsset.currency === getCurrency(t)
+            ? (t.amount / 100).toFixed(2)
+            : (t.operationAmount / 100).toFixed(2);
+    } else {
+        return getLMAccountCurrency() === "usd"
+            ? (t.amount / 100).toFixed(2)
+            : (t.operationAmount / 100).toFixed(2);
+    }
+};
+
+const getCurrency = (t) => {
+    if (!t || !t.currencyCode) {
+        throw new Error("Transaction object or currencyCode is undefined.");
+    }
+
+    if (isFop() && getLMAccountCurrency() === "usd") {
+        return "usd";
+    }
+
+    let currency;
+    switch (t.currencyCode) {
+        case 980:
+            currency = "uah";
+            break;
+        case 840:
+            currency = "usd";
+            break;
+        case 978:
+            currency = "eur";
+            break;
+        default:
+            throw new Error(`Unsupported currency code: ${t.currencyCode}`);
+    }
+    return currency;
+};
+
+const getLMAccountCurrency = () => {
+    const lunchMoneyAsset = lunchMoneyAssets.value.filter(
+        (asset) => asset.id === accountMappings[props.selectedAccount.id],
+    );
+
+    return lunchMoneyAsset?.currency;
+};
+
+const isFop = () => {
+    try {
+        return props.selectedAccount?.type === "fop";
+    } catch (error) {
+        throw new Error(error.message);
     }
 };
 </script>
