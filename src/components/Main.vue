@@ -1,11 +1,11 @@
 <style scoped>
 .main-container {
-    height: 100vh;
+    min-height: 100vh;
 }
 </style>
 
 <template>
-    <div class="main-container has-background">
+    <div class="main-container has-background pb-5">
         <div class="container">
             <ControlPanel @open-settings="openSettings" />
             <SelectDates
