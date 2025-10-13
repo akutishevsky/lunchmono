@@ -87,10 +87,12 @@ const props = defineProps({
 
 const transactions = ref([]);
 const lunchMoneyAssets = ref([]);
+const monobankAccounts = ref([]);
 const showNotification = inject("showNotification");
 
 onMounted(async () => {
     await setLunchMoneyAssets();
+    await setMonobankAccounts();
 });
 
 /**
@@ -199,6 +201,33 @@ const setLunchMoneyAssets = async () => {
     }
 };
 
+const setMonobankAccounts = async () => {
+    try {
+        const baseUrl = await getBaseUrl();
+
+        if (!baseUrl) {
+            showNotification("Base URL is not available", true);
+            return;
+        }
+
+        const response = await fetch(`${baseUrl}/monobank/client-info`);
+        const result = await response.json();
+
+        if (!response.ok) {
+            showNotification(
+                result.error || "Failed to fetch Monobank accounts",
+                true,
+            );
+            return;
+        }
+
+        monobankAccounts.value = result.accounts || [];
+    } catch (error) {
+        showNotification(`Error fetching Monobank accounts: ${error}`, true);
+        monobankAccounts.value = [];
+    }
+};
+
 const showTransactions = async () => {
     // Validate inputs
     if (!props.selectedAccount) {
@@ -242,40 +271,51 @@ const syncTransactions = async () => {
         }
 
         const payload = [];
-        transactions.value.forEach(async (trx) => {
-            console.log(await getAmount(trx));
-            // payload.push({
-            //     date: new Date(t.time * 1000).toISOString(),
-            //     amount: getAmount(cmp, t),
-            //     payee: t.description ? t.description.slice(0, 140) : "",
-            //     currency: getCurrency(cmp, t),
-            //     asset_id: getAssetId(cmp),
-            //     notes: t.description,
-            //     category_id: null,
-            //     external_id: null,
-            //     recurring_id: null,
-            //     status: "uncleared",
-            //     tags: null,
-            // });
-        });
+        await composePayload(payload);
+
+        console.table(payload);
     } catch (error) {
         showNotification(error, true);
     }
 };
 
+const composePayload = async (payload) => {
+    const payloadItems = await Promise.all(
+        transactions.value.map(async (trx) => ({
+            date: new Date(trx.time * 1000).toISOString(),
+            amount: await getAmount(trx),
+            payee: trx.description ? trx.description.slice(0, 140) : "",
+            currency: getCurrency(trx),
+            asset_id: await getAssetId(),
+            notes: trx.description,
+            category_id: null,
+            external_id: null,
+            recurring_id: null,
+            status: "uncleared",
+            tags: null,
+        }))
+    );
+
+    payload.push(...payloadItems);
+};
+
 const getAmount = async (t) => {
     const accountMappings = await getAccountMappings();
 
-    const lunchMoneyAsset = lunchMoneyAssets.value.filter(
-        (asset) => asset.id === accountMappings[props.selectedAccount.id],
+    const lunchMoneyAsset = lunchMoneyAssets.value.find(
+        (asset) => asset.id === accountMappings[props.selectedAccount],
     );
+
+    if (!lunchMoneyAsset) {
+        throw new Error("Lunch Money asset not found for selected account");
+    }
 
     if (!isFop()) {
         return lunchMoneyAsset.currency === getCurrency(t)
             ? (t.amount / 100).toFixed(2)
             : (t.operationAmount / 100).toFixed(2);
     } else {
-        return getLMAccountCurrency() === "usd"
+        return (await getLMAccountCurrency()) === "usd"
             ? (t.amount / 100).toFixed(2)
             : (t.operationAmount / 100).toFixed(2);
     }
@@ -284,10 +324,6 @@ const getAmount = async (t) => {
 const getCurrency = (t) => {
     if (!t || !t.currencyCode) {
         throw new Error("Transaction object or currencyCode is undefined.");
-    }
-
-    if (isFop() && getLMAccountCurrency() === "usd") {
-        return "usd";
     }
 
     let currency;
@@ -307,9 +343,10 @@ const getCurrency = (t) => {
     return currency;
 };
 
-const getLMAccountCurrency = () => {
-    const lunchMoneyAsset = lunchMoneyAssets.value.filter(
-        (asset) => asset.id === accountMappings[props.selectedAccount.id],
+const getLMAccountCurrency = async () => {
+    const accountMappings = await getAccountMappings();
+    const lunchMoneyAsset = lunchMoneyAssets.value.find(
+        (asset) => asset.id === accountMappings[props.selectedAccount],
     );
 
     return lunchMoneyAsset?.currency;
@@ -317,9 +354,21 @@ const getLMAccountCurrency = () => {
 
 const isFop = () => {
     try {
-        return props.selectedAccount?.type === "fop";
+        const account = monobankAccounts.value.find(
+            (acc) => acc.id === props.selectedAccount
+        );
+        return account?.type === "fop";
     } catch (error) {
         throw new Error(error.message);
     }
+};
+
+const getAssetId = async () => {
+    const accountMappings = await getAccountMappings();
+    const lunchMoneyAsset = lunchMoneyAssets.value.find(
+        (asset) => asset.id === accountMappings[props.selectedAccount],
+    );
+
+    return lunchMoneyAsset?.id;
 };
 </script>
