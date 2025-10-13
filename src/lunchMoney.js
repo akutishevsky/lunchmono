@@ -17,19 +17,20 @@ export const getAssets = async () => {
     return response.json();
 };
 
-export const insertTransactions = async (transactionsJson) => {
+export const insertTransactions = async (transactions) => {
     const token = getDecryptedToken(TOKENS.LM);
 
-    const trx = JSON.parse(decodeURIComponent(transactionsJson));
     const body = JSON.stringify({
-        transactions: trx,
+        transactions: transactions,
         apply_rules: true,
         skip_duplicates: true,
         check_for_recurring: true,
         debit_as_negative: true,
         skip_balance_update: false,
     });
-    console.log(body);
+
+    console.log("Inserting transactions:", body);
+
     const response = await fetch(ENDPOINTS.INSERT, {
         method: "POST",
         headers: {
@@ -38,7 +39,8 @@ export const insertTransactions = async (transactionsJson) => {
         },
         body: body,
     });
+
     const responseBody = await response.json();
-    console.log(responseBody);
+    console.log("Lunch Money response:", responseBody);
     return responseBody;
 };

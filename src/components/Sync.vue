@@ -266,16 +266,61 @@ const showTransactions = async () => {
 
 const syncTransactions = async () => {
     try {
+        const baseUrl = await getBaseUrl();
+
+        if (!baseUrl) {
+            showNotification("Base URL is not available", true);
+            return;
+        }
+
         if (transactions.value.length === 0) {
             showNotification("Select the dates and Account first.", true);
+            return;
         }
 
         const payload = [];
         await composePayload(payload);
 
-        console.table(payload);
+        const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ transactions: payload }),
+        });
+
+        const responseText = await response.text();
+        console.log("Raw response:", responseText);
+
+        if (!response.ok) {
+            let errorMessage = "Failed to sync transactions";
+            try {
+                const errorData = JSON.parse(responseText);
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                errorMessage = responseText || errorMessage;
+            }
+            showNotification(errorMessage, true);
+            return;
+        }
+
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            showNotification(
+                `Server returned invalid JSON: ${responseText}`,
+                true,
+            );
+            return;
+        }
+
+        showNotification(
+            `Successfully inserted ${payload.length} transactions`,
+            false,
+        );
     } catch (error) {
-        showNotification(error, true);
+        showNotification(`Error syncing transactions: ${error.message}`, true);
     }
 };
 
@@ -293,7 +338,7 @@ const composePayload = async (payload) => {
             recurring_id: null,
             status: "uncleared",
             tags: null,
-        }))
+        })),
     );
 
     payload.push(...payloadItems);
@@ -355,7 +400,7 @@ const getLMAccountCurrency = async () => {
 const isFop = () => {
     try {
         const account = monobankAccounts.value.find(
-            (acc) => acc.id === props.selectedAccount
+            (acc) => acc.id === props.selectedAccount,
         );
         return account?.type === "fop";
     } catch (error) {
