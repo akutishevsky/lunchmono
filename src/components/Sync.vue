@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref } from "vue";
+import { ref, inject } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 
 const props = defineProps({
@@ -82,6 +82,7 @@ const props = defineProps({
 });
 
 const transactions = ref([]);
+const showNotification = inject("showNotification");
 
 /**
  * Convert date string to Unix timestamp (seconds)
@@ -144,6 +145,17 @@ const formatAmount = (amount) => {
 };
 
 const showTransactions = async () => {
+    // Validate inputs
+    if (!props.selectedAccount) {
+        showNotification("Please select an account first", true);
+        return;
+    }
+
+    if (!props.dateFrom || !props.dateTo) {
+        showNotification("Please select date range", true);
+        return;
+    }
+
     // Convert dates to Unix timestamps (add 1 day to end date for inclusive range)
     const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
     const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
@@ -156,6 +168,12 @@ const showTransactions = async () => {
 
     if (fetchedTransactions) {
         transactions.value = fetchedTransactions;
+        showNotification(
+            `Successfully loaded ${fetchedTransactions.length} transactions`,
+            false
+        );
+    } else {
+        showNotification("Failed to fetch transactions. Please try again.", true);
     }
 };
 </script>
