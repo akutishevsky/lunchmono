@@ -13,7 +13,10 @@
                 :is-error="notificationIsError"
                 @close="hideNotification"
             />
-            <ControlPanel @open-settings="openSettings" />
+            <ControlPanel
+                @open-settings="openSettings"
+                @open-accounts-mapping="openAccountsMapping"
+            />
             <SelectDates
                 v-model:date-from="dateFrom"
                 v-model:date-to="dateTo"
@@ -25,6 +28,10 @@
                 :date-to="dateTo"
             />
         </div>
+        <AccountsMapping
+            :is-open="isAccountsMappingOpen"
+            @close="closeAccountsMapping"
+        />
         <Settings :is-open="isSettingsOpen" @close="closeSettings" />
     </div>
 </template>
@@ -34,11 +41,13 @@ import ControlPanel from "./ControlPanel.vue";
 import SelectDates from "./SelectDates.vue";
 import SelectAccount from "./SelectAccount.vue";
 import Sync from "./Sync.vue";
+import AccountsMapping from "./AccountsMapping.vue";
 import Settings from "./Settings.vue";
 import Notification from "./Notification.vue";
 
 import { ref, provide } from "vue";
 
+const isAccountsMappingOpen = ref(false);
 const isSettingsOpen = ref(false);
 const selectedAccount = ref("");
 const dateFrom = ref("");
@@ -48,6 +57,14 @@ const dateTo = ref("");
 const notificationVisible = ref(false);
 const notificationMessage = ref("");
 const notificationIsError = ref(false);
+
+const openAccountsMapping = () => {
+    isAccountsMappingOpen.value = true;
+};
+
+const closeAccountsMapping = () => {
+    isAccountsMappingOpen.value = false;
+};
 
 const openSettings = () => {
     isSettingsOpen.value = true;

@@ -11,12 +11,6 @@
                 ></button>
             </header>
             <section class="modal-card-body">
-                <div v-if="errorMessage" class="notification is-danger">
-                    {{ errorMessage }}
-                </div>
-                <div v-if="successMessage" class="notification is-success">
-                    {{ successMessage }}
-                </div>
                 <div class="field">
                     <label class="label">Monobank API Token</label>
                     <div class="control has-icons-right">
@@ -73,7 +67,7 @@
 </template>
 
 <script setup>
-import { ref, watch } from "vue";
+import { ref, watch, inject } from "vue";
 
 const props = defineProps({
     isOpen: {
@@ -84,12 +78,12 @@ const props = defineProps({
 
 const emit = defineEmits(["close"]);
 
+const showNotification = inject("showNotification");
+
 // Reactive state for token inputs
 const monobankToken = ref("");
 const lunchMoneyToken = ref("");
 const isSaving = ref(false);
-const errorMessage = ref("");
-const successMessage = ref("");
 
 // Visibility toggles for password fields
 const showMonobankToken = ref(false);
@@ -99,7 +93,6 @@ watch(
     () => props.isOpen,
     (isNowOpen) => {
         if (isNowOpen) {
-            clearMessages();
             loadTokens();
         }
     },
@@ -112,14 +105,12 @@ const loadTokens = async () => {
         monobankToken.value = result.tokens.monobankToken;
         lunchMoneyToken.value = result.tokens.lunchMoneyToken;
     } catch (error) {
-        errorMessage.value = `Error: ${error.message}`;
+        showNotification(`Error: ${error.message}`, true);
     }
 };
 
 const saveTokens = async () => {
     isSaving.value = true;
-    errorMessage.value = "";
-    successMessage.value = "";
 
     try {
         const result = await window.electronAPI.saveTokens({
@@ -128,27 +119,18 @@ const saveTokens = async () => {
         });
 
         if (result.success) {
-            successMessage.value = "Tokens saved successfully!";
-            setTimeout(() => {
-                successMessage.value = "";
-            }, 3000);
+            showNotification("Tokens saved successfully!", false);
         } else {
-            errorMessage.value = result.error || "Failed to save tokens";
+            showNotification(result.error || "Failed to save tokens", true);
         }
     } catch (error) {
-        errorMessage.value = `Error: ${error.message}`;
+        showNotification(`Error: ${error.message}`, true);
     } finally {
         isSaving.value = false;
     }
 };
 
 const close = () => {
-    clearMessages();
     emit("close");
-};
-
-const clearMessages = () => {
-    errorMessage.value = "";
-    successMessage.value = "";
 };
 </script>
