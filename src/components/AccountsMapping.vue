@@ -49,7 +49,11 @@
                         <div class="label">Lunch Money Asset</div>
                         <div class="control">
                             <div class="select is-fullwidth is-primary">
-                                <select v-model="selectedAccount">
+                                <select
+                                    v-model="
+                                        accountMappings[monobankAccount.id]
+                                    "
+                                >
                                     <option value="">None</option>
                                     <option
                                         v-for="lunchMoneyAsset in lunchMoneyAssets"
@@ -71,7 +75,7 @@
                 <div class="buttons">
                     <button
                         class="button is-success"
-                        @click="saveTokens"
+                        @click="saveMappings"
                         :disabled="isSaving"
                     >
                         {{ isSaving ? "Saving..." : "Save changes" }}
@@ -97,6 +101,7 @@ const props = defineProps({
 const isSaving = ref(false);
 const monobankAccounts = ref([]);
 const lunchMoneyAssets = ref([]);
+const accountMappings = ref({});
 
 const emit = defineEmits(["close"]);
 const showNotification = inject("showNotification");
@@ -105,7 +110,7 @@ watch(
     () => props.isOpen,
     async (isNowOpen) => {
         if (isNowOpen) {
-            // loadTokens();
+            await loadMappings();
             await setMonobankAccounts();
             await setLunchMoneyAssets();
         }
@@ -122,16 +127,15 @@ const setMonobankAccounts = async () => {
         }
 
         const response = await fetch(`${baseUrl}/monobank/client-info`);
+        const result = await response.json();
 
         if (!response.ok) {
-            const errorData = await response.json();
             showNotification(
-                errorData.error || "Failed to fetch client info",
+                result.error || "Failed to fetch client info",
                 true,
             );
+            return;
         }
-
-        const result = await response.json();
 
         // Ensure accounts exist and have valid data
         const accountsData = result.accounts || [];
@@ -143,7 +147,7 @@ const setMonobankAccounts = async () => {
             return typeA.localeCompare(typeB);
         });
     } catch (error) {
-        showNotification(`Error fetching accounts: + ${error}`, true);
+        showNotification(`Error fetching accounts: ${error}`, true);
         monobankAccounts.value = [];
     }
 };
@@ -158,62 +162,72 @@ const setLunchMoneyAssets = async () => {
         }
 
         const response = await fetch(`${baseUrl}/lunchmoney/assets`);
+        const result = await response.json();
 
         if (!response.ok) {
-            const errorData = await response.json();
             showNotification(
-                errorData.error || "Failed to fetch Lunch Money Assets",
+                result.error || "Failed to fetch Lunch Money Assets",
                 true,
             );
+            return;
         }
-
-        const result = await response.json();
 
         const assets = result.assets || [];
 
         lunchMoneyAssets.value = assets;
     } catch (error) {
-        showNotification(`Error fetching accounts: + ${error}`, true);
+        showNotification(`Error fetching assets: ${error}`, true);
         lunchMoneyAssets.value = [];
     }
 };
 
-// const loadTokens = async () => {
-//     try {
-//         const result = await window.electronAPI.loadTokens();
+/**
+ * Load account mappings from electron storage
+ */
+const loadMappings = async () => {
+    try {
+        const result = await window.electronAPI.loadAccountMappings();
 
-//         monobankToken.value = result.tokens.monobankToken;
-//         lunchMoneyToken.value = result.tokens.lunchMoneyToken;
-//     } catch (error) {
-//         errorMessage.value = `Error: ${error.message}`;
-//     }
-// };
+        if (result.success) {
+            accountMappings.value = result.mappings;
+        } else {
+            showNotification(
+                result.error || "Failed to load account mappings",
+                true,
+            );
+        }
+    } catch (error) {
+        showNotification(`Error loading mappings: ${error.message}`, true);
+    }
+};
 
-// const saveTokens = async () => {
-//     isSaving.value = true;
-//     errorMessage.value = "";
-//     successMessage.value = "";
+/**
+ * Save account mappings to electron storage
+ */
+const saveMappings = async () => {
+    isSaving.value = true;
 
-//     try {
-//         const result = await window.electronAPI.saveTokens({
-//             monobankToken: monobankToken.value,
-//             lunchMoneyToken: lunchMoneyToken.value,
-//         });
+    try {
+        // Convert reactive proxy to plain object for IPC transmission
+        const plainMappings = JSON.parse(JSON.stringify(accountMappings.value));
 
-//         if (result.success) {
-//             successMessage.value = "Tokens saved successfully!";
-//             setTimeout(() => {
-//                 successMessage.value = "";
-//             }, 3000);
-//         } else {
-//             errorMessage.value = result.error || "Failed to save tokens";
-//         }
-//     } catch (error) {
-//         errorMessage.value = `Error: ${error.message}`;
-//     } finally {
-//         isSaving.value = false;
-//     }
-// };
+        const result =
+            await window.electronAPI.saveAccountMappings(plainMappings);
+
+        if (result.success) {
+            showNotification("Account mappings saved successfully!", false);
+        } else {
+            showNotification(
+                result.error || "Failed to save account mappings",
+                true,
+            );
+        }
+    } catch (error) {
+        showNotification(`Error: ${error.message}`, true);
+    } finally {
+        isSaving.value = false;
+    }
+};
 
 const close = () => {
     emit("close");

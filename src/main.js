@@ -6,6 +6,8 @@ import {
     saveTokens,
     loadTokens,
     migrateTokensToSafeStorage,
+    saveAccountMappings,
+    loadAccountMappings,
 } from "./tokenStorage.js";
 
 const DEFAULT_WIDTH = 1280;
@@ -104,6 +106,15 @@ ipcMain.handle("load-tokens", async () => {
 // IPC handler to get server base URL
 ipcMain.handle("get-base-url", async () => {
     return serverPort ? `http://localhost:${serverPort}` : null;
+});
+
+// IPC handlers for account mappings
+ipcMain.handle("save-account-mappings", async (event, mappings) => {
+    return saveAccountMappings(mappings);
+});
+
+ipcMain.handle("load-account-mappings", async () => {
+    return loadAccountMappings();
 });
 
 // In this file you can include the rest of your app's specific main process

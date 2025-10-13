@@ -156,3 +156,39 @@ export const migrateTokensToSafeStorage = () => {
         console.error("Token migration failed:", error);
     }
 };
+
+// ===== Account Mappings Storage =====
+
+const ACCOUNT_MAPPINGS_KEY = "accountMappings";
+
+/**
+ * Save account mappings between Monobank accounts and Lunch Money assets
+ * @param {Object} mappings - Object with monobank account IDs as keys and lunch money asset IDs as values
+ * @returns {Object} Result with success status
+ */
+export const saveAccountMappings = (mappings) => {
+    try {
+        store.set(ACCOUNT_MAPPINGS_KEY, mappings);
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving account mappings:", error);
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Load account mappings from storage
+ * @returns {Object} Result with mappings object
+ */
+export const loadAccountMappings = () => {
+    try {
+        const mappings = store.get(ACCOUNT_MAPPINGS_KEY, {});
+        return {
+            success: true,
+            mappings: mappings,
+        };
+    } catch (error) {
+        console.error("Error loading account mappings:", error);
+        return { success: false, error: error.message, mappings: {} };
+    }
+};

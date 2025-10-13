@@ -10,4 +10,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     loadTokens: () => ipcRenderer.invoke("load-tokens"),
     getBaseUrl: () => ipcRenderer.invoke("get-base-url"),
     onServerReady: (callback) => ipcRenderer.on("server-ready", callback),
+    saveAccountMappings: (mappings) => ipcRenderer.invoke("save-account-mappings", mappings),
+    loadAccountMappings: () => ipcRenderer.invoke("load-account-mappings"),
 });
