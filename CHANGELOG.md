@@ -58,4 +58,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transaction sync preserves original descriptions and timestamps
 - All sensitive data is encrypted and stored locally
 
-[1.0.0]: https://github.com/yourusername/lunchmono/releases/tag/v1.0.0
+[1.0.0]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.0.0
