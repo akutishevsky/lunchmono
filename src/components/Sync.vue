@@ -20,8 +20,9 @@
 
             <div v-if="transactions.length > 0" class="mt-5">
                 <h4 class="title is-6 has-text-centered">
-                    Monobank transactions for {{ props.dateFrom }} -
-                    {{ props.dateTo }}
+                    Monobank transactions for
+                    <span class="tag is-primary">{{ props.dateFrom }}</span> -
+                    <span class="tag is-primary">{{ props.dateTo }}</span>
                 </h4>
                 <div class="table-container">
                     <table
@@ -170,10 +171,13 @@ const showTransactions = async () => {
         transactions.value = fetchedTransactions;
         showNotification(
             `Successfully loaded ${fetchedTransactions.length} transactions`,
-            false
+            false,
         );
     } else {
-        showNotification("Failed to fetch transactions. Please try again.", true);
+        showNotification(
+            "Failed to fetch transactions. Please try again.",
+            true,
+        );
     }
 };
 </script>
