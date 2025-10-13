@@ -1,13 +1,17 @@
 {
   "name": "lunchmono-electron",
-  "productName": "lunchmono-electron",
+  "productName": "Lunch Mono",
   "version": "1.0.0",
-  "description": "My Electron application description",
+  "description": "Lunch Mono - Monobank to Lunch Money transaction sync",
   "main": ".vite/build/main.js",
   "scripts": {
     "start": "electron-forge start",
     "package": "electron-forge package",
     "make": "electron-forge make",
+    "make:mac": "electron-forge make --platform=darwin",
+    "make:win": "electron-forge make --platform=win32",
+    "make:linux": "electron-forge make --platform=linux",
+    "make:all": "npm run make:mac && npm run make:win && npm run make:linux",
     "publish": "electron-forge publish",
     "lint": "echo \"No linting configured\""
   },
