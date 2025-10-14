@@ -106,6 +106,7 @@ const CURRENCY_CODES = {
     980: "uah",
     840: "usd",
     978: "eur",
+    826: "gbp",
 };
 
 // Initialize - removed onMounted data fetching to avoid errors when tokens are missing

@@ -5,6 +5,11 @@ All notable changes to Lunch Mono will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2025-10-14
+
+### Added
+- **GBP Currency Support** - Added support for British Pound (GBP) currency in transaction sync and display
+
 ## [1.0.1] - 2025-10-13
 
 ### Fixed
@@ -71,5 +76,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Transaction sync preserves original descriptions and timestamps
 - All sensitive data is encrypted and stored locally
 
+[1.1.0]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.1.0
 [1.0.1]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.0.1
 [1.0.0]: https://github.com/akutishevsky/lunchmono/releases/tag/v1.0.0
