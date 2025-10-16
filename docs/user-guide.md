@@ -2,6 +2,12 @@
 
 Welcome to Lunch Mono! This guide will walk you through setting up and using the application to sync your Monobank transactions with Lunch Money.
 
+## Download
+
+**[📥 Download Lunch Mono](https://github.com/akutishevsky/lunchmono/releases/latest)**
+
+---
+
 ## Table of Contents
 
 1. [Getting Started](#getting-started)
