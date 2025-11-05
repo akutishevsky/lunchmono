@@ -2,10 +2,17 @@
     <div class="block">
         <h3 class="title is-5">3️⃣ Sync</h3>
         <div class="box">
+            <progress
+                v-if="isProgressBarVisible"
+                class="progress is-black"
+                :value="progressValue"
+                max="100"
+            ></progress>
             <div class="columns">
                 <div class="column">
                     <button
                         class="button is-fullwidth"
+                        :disabled="isProgressBarVisible"
                         @click="showTransactions"
                     >
                         📋 Show transactions
@@ -67,7 +74,7 @@
 </template>
 
 <script setup>
-import { ref, inject, onMounted, computed } from "vue";
+import { ref, inject, onMounted, computed, onBeforeUnmount } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 
 const props = defineProps({
@@ -81,6 +88,9 @@ const transactions = ref([]);
 const lunchMoneyAssets = ref([]);
 const monobankAccounts = ref([]);
 const showNotification = inject("showNotification");
+const isProgressBarVisible = ref(false);
+const progressValue = ref(0);
+const progressBarInterval = ref(null);
 
 // Computed
 const selectedLMAsset = computed(() => {
@@ -160,6 +170,13 @@ async function loadAccountMappings() {
 // Expose method so parent can trigger refresh
 defineExpose({
     refreshMappings: loadAccountMappings,
+});
+
+// Cleanup interval on component unmount
+onBeforeUnmount(() => {
+    if (progressBarInterval.value) {
+        clearInterval(progressBarInterval.value);
+    }
 });
 
 // Formatters
@@ -259,6 +276,29 @@ async function showTransactions() {
             `Successfully loaded ${transactions.value.length} transactions`,
             false,
         );
+
+        // Show progress bar and disable button for 60 seconds
+        if (progressBarInterval.value) {
+            clearInterval(progressBarInterval.value);
+        }
+
+        isProgressBarVisible.value = true;
+        progressValue.value = 0;
+
+        const totalDuration = 60000; // 60 seconds in milliseconds
+        const intervalDuration = 1000; // Update every second
+        const increment = 100 / (totalDuration / intervalDuration); // ~1.67 per second
+
+        progressBarInterval.value = setInterval(() => {
+            progressValue.value += increment;
+
+            if (progressValue.value >= 100) {
+                progressValue.value = 100;
+                clearInterval(progressBarInterval.value);
+                progressBarInterval.value = null;
+                isProgressBarVisible.value = false;
+            }
+        }, intervalDuration);
     } catch (error) {
         showNotification(`Error: ${error.message}`, true);
     }
