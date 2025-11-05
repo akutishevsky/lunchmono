@@ -10,13 +10,19 @@
             ></progress>
             <div class="columns">
                 <div class="column">
-                    <button
-                        class="button is-fullwidth"
-                        :disabled="isProgressBarVisible"
-                        @click="showTransactions"
+                    <div
+                        class="tooltip-wrapper"
+                        :class="{ 'has-tooltip': isProgressBarVisible }"
+                        :data-tooltip="tooltipMessage"
                     >
-                        📋 Show transactions
-                    </button>
+                        <button
+                            class="button is-fullwidth"
+                            :disabled="isProgressBarVisible"
+                            @click="showTransactions"
+                        >
+                            📋 Show transactions
+                        </button>
+                    </div>
                 </div>
                 <div class="column">
                     <button
@@ -91,6 +97,7 @@ const showNotification = inject("showNotification");
 const isProgressBarVisible = ref(false);
 const progressValue = ref(0);
 const progressBarInterval = ref(null);
+const remainingSeconds = ref(60);
 
 // Computed
 const selectedLMAsset = computed(() => {
@@ -107,6 +114,10 @@ const selectedLMAsset = computed(() => {
 
 const selectedMonobankAccount = computed(() =>
     monobankAccounts.value.find((acc) => acc.id === props.selectedAccount),
+);
+
+const tooltipMessage = computed(() =>
+    `Monobank API allows only 1 request per 60 seconds, please wait ${remainingSeconds.value} seconds`
 );
 
 const accountMappings = ref(null);
@@ -284,6 +295,7 @@ async function showTransactions() {
 
         isProgressBarVisible.value = true;
         progressValue.value = 0;
+        remainingSeconds.value = 60;
 
         const totalDuration = 60000; // 60 seconds in milliseconds
         const intervalDuration = 1000; // Update every second
@@ -291,9 +303,11 @@ async function showTransactions() {
 
         progressBarInterval.value = setInterval(() => {
             progressValue.value += increment;
+            remainingSeconds.value = Math.max(0, Math.ceil(60 - (progressValue.value / 100 * 60)));
 
             if (progressValue.value >= 100) {
                 progressValue.value = 100;
+                remainingSeconds.value = 0;
                 clearInterval(progressBarInterval.value);
                 progressBarInterval.value = null;
                 isProgressBarVisible.value = false;
@@ -367,3 +381,51 @@ async function syncTransactions() {
     }
 }
 </script>
+
+<style scoped>
+.tooltip-wrapper {
+    position: relative;
+    display: block;
+}
+
+.tooltip-wrapper.has-tooltip::before {
+    content: attr(data-tooltip);
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 8px;
+    padding: 8px 12px;
+    background-color: #363636;
+    color: #fff;
+    font-size: 0.875rem;
+    line-height: 1.4;
+    white-space: normal;
+    max-width: 250px;
+    border-radius: 4px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+
+.tooltip-wrapper.has-tooltip::after {
+    content: "";
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-bottom: 2px;
+    border: 6px solid transparent;
+    border-top-color: #363636;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    z-index: 10;
+}
+
+.tooltip-wrapper.has-tooltip:hover::before,
+.tooltip-wrapper.has-tooltip:hover::after {
+    opacity: 1;
+}
+</style>
