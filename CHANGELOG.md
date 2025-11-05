@@ -5,6 +5,21 @@ All notable changes to Lunch Mono will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-11-05
+
+### Added
+
+- **API Rate Limit Visualization** - Added black progress bar that fills up over 60 seconds after fetching transactions, providing visual feedback for Monobank API rate limit
+- **Request Cooldown Protection** - "Show transactions" button now disables during the 60-second API cooldown period to prevent rate limit errors
+- **Dynamic Countdown Tooltip** - Added informative tooltip that displays remaining wait time in seconds when hovering over the disabled button
+- **Smooth Progress Updates** - Progress bar increments every second, showing exact time remaining until next API request is allowed
+
+### Improved
+
+- Better user experience with real-time feedback on API rate limits
+- Clear visual indication of when the next transaction fetch is available
+- Prevents accidental API rate limit violations
+
 ## [1.1.0] - 2025-10-14
 
 ### Added
