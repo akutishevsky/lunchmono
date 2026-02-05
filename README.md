@@ -16,8 +16,31 @@
 
 ## 🚀 Quick Start
 
-1. **Download** the latest release for your platform from the [Releases page](https://github.com/akutishevsky/lunchmono/releases)
-2. **Extract** the ZIP file and launch the application
+> **Note:** This application is not code-signed. Due to macOS/Windows security restrictions, you'll need to build it yourself from source.
+
+### Building from Source
+
+```bash
+# Clone the repository
+git clone https://github.com/akutishevsky/lunchmono.git
+cd lunchmono
+
+# Install dependencies
+npm install
+
+# Build for your platform
+npm run make:mac    # macOS
+npm run make:win    # Windows
+npm run make:linux  # Linux
+npm run make:all    # All platforms
+```
+
+The built application will be available in the `out/make` directory.
+
+### Getting Started
+
+1. **Build** the application using the instructions above
+2. **Launch** the application from the `out/make` directory
 3. **Configure** your API tokens in Settings (⚙️)
 4. **Map** your Monobank accounts to Lunch Money assets (💳)
 5. **Sync** your transactions with ease!
@@ -26,7 +49,6 @@
 
 - **[User Guide](./docs/user-guide.md)** - Comprehensive setup and usage instructions
 - **[Changelog](./CHANGELOG.md)** - Version history and release notes
-- **[Releases](https://github.com/akutishevsky/lunchmono/releases)** - Download the latest version
 
 ## ✨ Features
 
@@ -39,12 +61,6 @@
 ## 🛠️ Development
 
 ```bash
-# Install dependencies
-npm install
-
-# Start development mode
+# Start development mode with hot reload
 npm start
-
-# Build for all platforms
-npm run make:all
 ```
