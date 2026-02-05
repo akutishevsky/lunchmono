@@ -21,13 +21,44 @@
                 v-model:date-from="dateFrom"
                 v-model:date-to="dateTo"
             />
-            <SelectAccount ref="selectAccountRef" v-model="selectedAccount" />
-            <Sync
-                ref="syncRef"
-                :selected-account="selectedAccount"
-                :date-from="dateFrom"
-                :date-to="dateTo"
-            />
+
+            <!-- Tabs -->
+            <div class="block">
+                <div class="tabs is-toggle is-fullwidth">
+                    <ul>
+                        <li :class="{ 'is-active': activeTab === 'manual' }">
+                            <a @click="activeTab = 'manual'">
+                                <span>🔄 Manual Sync</span>
+                            </a>
+                        </li>
+                        <li :class="{ 'is-active': activeTab === 'auto' }">
+                            <a @click="activeTab = 'auto'">
+                                <span>🚀 Auto Import</span>
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Manual Sync Tab Content -->
+            <div v-show="activeTab === 'manual'">
+                <SelectAccount ref="selectAccountRef" v-model="selectedAccount" />
+                <Sync
+                    ref="syncRef"
+                    :selected-account="selectedAccount"
+                    :date-from="dateFrom"
+                    :date-to="dateTo"
+                />
+            </div>
+
+            <!-- Auto Import Tab Content -->
+            <div v-show="activeTab === 'auto'">
+                <AutoImport
+                    ref="autoImportRef"
+                    :date-from="dateFrom"
+                    :date-to="dateTo"
+                />
+            </div>
         </div>
         <AccountsMapping
             :is-open="isAccountsMappingOpen"
@@ -47,6 +78,7 @@ import ControlPanel from "./ControlPanel.vue";
 import SelectDates from "./SelectDates.vue";
 import SelectAccount from "./SelectAccount.vue";
 import Sync from "./Sync.vue";
+import AutoImport from "./AutoImport.vue";
 import AccountsMapping from "./AccountsMapping.vue";
 import Settings from "./Settings.vue";
 import Notification from "./Notification.vue";
@@ -58,8 +90,10 @@ const isSettingsOpen = ref(false);
 const selectedAccount = ref("");
 const dateFrom = ref("");
 const dateTo = ref("");
+const activeTab = ref("manual"); // 'manual' or 'auto'
 const selectAccountRef = ref(null);
 const syncRef = ref(null);
+const autoImportRef = ref(null);
 
 // Notification state
 const notificationVisible = ref(false);

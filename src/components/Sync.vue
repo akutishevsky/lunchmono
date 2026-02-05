@@ -82,6 +82,11 @@
 <script setup>
 import { ref, inject, onMounted, computed, onBeforeUnmount } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
+import {
+    formatAmount,
+    dateToUnixTimestamp,
+    buildTransactionPayload,
+} from "../scripts/transactionUtils.js";
 
 const props = defineProps({
     selectedAccount: { type: String, default: "" },
@@ -121,14 +126,6 @@ const tooltipMessage = computed(() =>
 );
 
 const accountMappings = ref(null);
-
-// Currency mapping
-const CURRENCY_CODES = {
-    980: "uah",
-    840: "usd",
-    978: "eur",
-    826: "gbp",
-};
 
 // Initialize - removed onMounted data fetching to avoid errors when tokens are missing
 // Data will be fetched when user explicitly requests transactions
@@ -200,56 +197,6 @@ const formatDate = (timestamp) =>
         minute: "2-digit",
     });
 
-const formatAmount = (amount) => (amount / 100).toFixed(2);
-
-const dateToUnixTimestamp = (dateString, offsetDays = 0) => {
-    const date = new Date(dateString);
-    if (offsetDays) date.setDate(date.getDate() + offsetDays);
-    return Math.floor(date.getTime() / 1000);
-};
-
-// Currency helpers
-const getCurrency = (transaction) => {
-    if (!transaction?.currencyCode) {
-        throw new Error("Transaction currencyCode is missing");
-    }
-    const currency = CURRENCY_CODES[transaction.currencyCode];
-    if (!currency) {
-        throw new Error(
-            `Unsupported currency code: ${transaction.currencyCode}`,
-        );
-    }
-    return currency;
-};
-
-const isFopAccount = () => selectedMonobankAccount.value?.type === "fop";
-
-// Transaction amount calculation
-const calculateAmount = (transaction) => {
-    const asset = selectedLMAsset.value;
-    if (!asset) {
-        throw new Error(
-            "Lunch Money asset not found for selected account. Please, add it in the Accounts Mapping.",
-        );
-    }
-
-    const transactionCurrency = getCurrency(transaction);
-    const useOperationAmount = asset.currency !== transactionCurrency;
-
-    // For FOP accounts, check if asset currency is USD
-    if (isFopAccount()) {
-        return formatAmount(
-            asset.currency === "usd"
-                ? transaction.amount
-                : transaction.operationAmount,
-        );
-    }
-
-    return formatAmount(
-        useOperationAmount ? transaction.operationAmount : transaction.amount,
-    );
-};
-
 // Fetch and display Monobank transactions
 async function showTransactions() {
     if (!props.selectedAccount) {
@@ -318,21 +265,13 @@ async function showTransactions() {
     }
 }
 
-// Build Lunch Money transaction payload
-function buildTransactionPayload(transaction) {
-    return {
-        date: new Date(transaction.time * 1000).toISOString(),
-        amount: calculateAmount(transaction),
-        payee: transaction.description?.slice(0, 140) || "",
-        currency: getCurrency(transaction),
-        asset_id: selectedLMAsset.value?.id,
-        notes: transaction.description,
-        category_id: null,
-        external_id: null,
-        recurring_id: null,
-        status: "uncleared",
-        tags: null,
-    };
+// Local wrapper for buildTransactionPayload that uses component state
+function buildTransactionPayloadLocal(transaction) {
+    return buildTransactionPayload(
+        transaction,
+        selectedLMAsset.value,
+        selectedMonobankAccount.value,
+    );
 }
 
 // Sync transactions to Lunch Money
@@ -350,7 +289,7 @@ async function syncTransactions() {
         }
 
         // Build payload for all transactions
-        const payload = transactions.value.map(buildTransactionPayload);
+        const payload = transactions.value.map(buildTransactionPayloadLocal);
 
         const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {
             method: "POST",
