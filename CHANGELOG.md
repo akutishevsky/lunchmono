@@ -5,6 +5,22 @@ All notable changes to Lunch Mono will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-02-05
+
+### Added
+
+- **Auto Import Feature** - New batch transaction sync that automatically imports transactions from all mapped Monobank accounts to Lunch Money
+- **Tabbed Interface** - Switch between Manual Sync and Auto Import modes for flexible transaction management
+- **Progress Tracking** - Visual progress indicator showing current account being processed during Auto Import
+- **Cancellation Support** - Ability to cancel Auto Import operation mid-process
+- **Per-Account Result Reporting** - Detailed summary showing sync results for each account after Auto Import completes
+
+### Changed
+
+- Extracted shared transaction utilities to `transactionUtils.js` for better code reuse between Sync and Auto Import components
+- Refactored Sync.vue to use shared utilities
+- Auto Import respects Monobank API rate limits with 60-second delays between accounts
+
 ## [1.2.0] - 2025-11-05
 
 ### Added
