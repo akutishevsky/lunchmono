@@ -100,7 +100,7 @@ export function calculateAmount(transaction, lunchMoneyAsset, monobankAccount) {
  */
 export function buildTransactionPayload(transaction, lunchMoneyAsset, monobankAccount) {
     return {
-        date: new Date(transaction.time * 1000).toISOString(),
+        date: new Date(transaction.time * 1000).toISOString().split("T")[0],
         amount: calculateAmount(transaction, lunchMoneyAsset, monobankAccount),
         payee: transaction.description?.slice(0, 140) || "",
         currency: getCurrency(transaction),
