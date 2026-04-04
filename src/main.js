@@ -8,6 +8,8 @@ import {
     migrateTokensToSafeStorage,
     saveAccountMappings,
     loadAccountMappings,
+    saveDebugMode,
+    loadDebugMode,
 } from "./tokenStorage.js";
 
 const DEFAULT_WIDTH = 1280;
@@ -112,6 +114,15 @@ ipcMain.handle("save-account-mappings", async (event, mappings) => {
 
 ipcMain.handle("load-account-mappings", async () => {
     return loadAccountMappings();
+});
+
+// IPC handlers for debug mode
+ipcMain.handle("save-debug-mode", async (event, enabled) => {
+    return saveDebugMode(enabled);
+});
+
+ipcMain.handle("load-debug-mode", async () => {
+    return loadDebugMode();
 });
 
 // In this file you can include the rest of your app's specific main process
