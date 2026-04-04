@@ -342,8 +342,18 @@ async function syncTransactions() {
             responseData = responseText;
         }
         log.debug("POST /lunchmoney/transactions response:", responseData);
-        log.debug("Successfully synced", payload.length, "transactions to Lunch Money");
 
+        // Lunch Money may return 200 with error array in the body
+        if (responseData?.error) {
+            const errorMsg = Array.isArray(responseData.error)
+                ? responseData.error.join("; ")
+                : responseData.error;
+            log.error("Lunch Money returned errors:", responseData.error);
+            showNotification(errorMsg, true);
+            return;
+        }
+
+        log.debug("Successfully synced", payload.length, "transactions to Lunch Money");
         showNotification(
             `Successfully synced ${payload.length} transactions`,
             false,

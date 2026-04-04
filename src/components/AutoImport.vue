@@ -305,8 +305,16 @@ async function syncTransactionsToLunchMoney(transactions, lunchMoneyAsset, monob
         responseData = responseText;
     }
     log.debug("POST /lunchmoney/transactions response:", responseData);
-    log.debug("Synced", payload.length, "transactions successfully");
 
+    // Lunch Money may return 200 with error array in the body
+    if (responseData?.error) {
+        const errorMsg = Array.isArray(responseData.error)
+            ? responseData.error.join("; ")
+            : responseData.error;
+        throw new Error(errorMsg);
+    }
+
+    log.debug("Synced", payload.length, "transactions successfully");
     return payload.length;
 }
 
