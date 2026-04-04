@@ -87,6 +87,9 @@ import {
     dateToUnixTimestamp,
     buildTransactionPayload,
 } from "../scripts/transactionUtils.js";
+import { createLogger } from "../scripts/logger.js";
+
+const log = createLogger("Sync");
 
 const props = defineProps({
     selectedAccount: { type: String, default: "" },
@@ -132,6 +135,7 @@ const accountMappings = ref(null);
 
 // Generic API fetch with error handling
 async function fetchData(endpoint, targetRef, dataKey = null, silent = false) {
+    log.debug("fetchData:", endpoint);
     try {
         const baseUrl = await getBaseUrl();
         if (!baseUrl) {
@@ -143,6 +147,7 @@ async function fetchData(endpoint, targetRef, dataKey = null, silent = false) {
         const result = await response.json();
 
         if (!response.ok) {
+            log.error("fetchData failed:", endpoint, result);
             if (!silent) {
                 showNotification(
                     result.error || `Failed to fetch ${endpoint}`,
@@ -152,8 +157,10 @@ async function fetchData(endpoint, targetRef, dataKey = null, silent = false) {
             return;
         }
 
+        log.debug("GET", endpoint, "response:", result);
         targetRef.value = dataKey ? result[dataKey] || [] : result;
     } catch (error) {
+        log.error("fetchData error:", endpoint, error);
         if (!silent) {
             showNotification(`Error fetching ${endpoint}: ${error.message}`, true);
         }
@@ -163,14 +170,18 @@ async function fetchData(endpoint, targetRef, dataKey = null, silent = false) {
 
 // Load account mappings
 async function loadAccountMappings() {
+    log.debug("Loading account mappings via IPC...");
     try {
         const result = await window.electronAPI.loadAccountMappings();
         if (result.success) {
             accountMappings.value = result.mappings;
+            log.debug("Account mappings loaded:", Object.keys(result.mappings).length, "mapping(s)");
         } else {
+            log.error("Failed to load mappings:", result.error);
             showNotification(result.error || "Failed to load mappings", true);
         }
     } catch (error) {
+        log.error("Failed to load mappings:", error);
         showNotification(`Error loading mappings: ${error.message}`, true);
     }
 }
@@ -199,6 +210,8 @@ const formatDate = (timestamp) =>
 
 // Fetch and display Monobank transactions
 async function showTransactions() {
+    log.debug("showTransactions called - account:", props.selectedAccount, "dates:", props.dateFrom, "to", props.dateTo);
+
     if (!props.selectedAccount) {
         showNotification("Please select an account first", true);
         return;
@@ -222,14 +235,18 @@ async function showTransactions() {
         const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
         const url = `${baseUrl}/monobank/transactions/${props.selectedAccount}/${fromTimestamp}/${toTimestamp}`;
 
+        log.debug("GET", url);
         const response = await fetch(url);
         if (!response.ok) {
             const errorData = await response.json();
+            log.error("GET /monobank/transactions failed:", errorData);
             showNotification("Failed to fetch transactions", true);
             return;
         }
 
         transactions.value = await response.json();
+        log.debug("GET /monobank/transactions response:", transactions.value);
+        log.debug("Fetched", transactions.value.length, "transactions");
         showNotification(
             `Successfully loaded ${transactions.value.length} transactions`,
             false,
@@ -240,6 +257,7 @@ async function showTransactions() {
             clearInterval(progressBarInterval.value);
         }
 
+        log.debug("Starting 60s rate-limit cooldown");
         isProgressBarVisible.value = true;
         progressValue.value = 0;
         remainingSeconds.value = 60;
@@ -257,10 +275,12 @@ async function showTransactions() {
                 remainingSeconds.value = 0;
                 clearInterval(progressBarInterval.value);
                 progressBarInterval.value = null;
+                log.debug("Rate-limit cooldown complete");
                 isProgressBarVisible.value = false;
             }
         }, intervalDuration);
     } catch (error) {
+        log.error("showTransactions error:", error);
         showNotification(`Error: ${error.message}`, true);
     }
 }
@@ -276,6 +296,8 @@ function buildTransactionPayloadLocal(transaction) {
 
 // Sync transactions to Lunch Money
 async function syncTransactions() {
+    log.debug("syncTransactions called -", transactions.value.length, "transactions");
+
     if (transactions.value.length === 0) {
         showNotification("Please load transactions first", true);
         return;
@@ -290,6 +312,7 @@ async function syncTransactions() {
 
         // Build payload for all transactions
         const payload = transactions.value.map(buildTransactionPayloadLocal);
+        log.debug("POST /lunchmoney/transactions payload:", payload);
 
         const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {
             method: "POST",
@@ -307,15 +330,26 @@ async function syncTransactions() {
             } catch {
                 errorMessage = responseText || errorMessage;
             }
+            log.error("POST /lunchmoney/transactions failed:", errorMessage);
             showNotification(errorMessage, true);
             return;
         }
+
+        let responseData;
+        try {
+            responseData = JSON.parse(responseText);
+        } catch {
+            responseData = responseText;
+        }
+        log.debug("POST /lunchmoney/transactions response:", responseData);
+        log.debug("Successfully synced", payload.length, "transactions to Lunch Money");
 
         showNotification(
             `Successfully synced ${payload.length} transactions`,
             false,
         );
     } catch (error) {
+        log.error("syncTransactions error:", error);
         showNotification(`Error syncing: ${error.message}`, true);
     }
 }
