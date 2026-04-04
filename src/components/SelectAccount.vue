@@ -34,6 +34,9 @@
 <script setup>
 import { ref, inject, onMounted } from "vue";
 import { getBaseUrl } from "../scripts/utils";
+import { createLogger } from "../scripts/logger.js";
+
+const log = createLogger("SelectAccount");
 
 const selectedAccount = defineModel({ type: String, default: "" });
 const showNotification = inject("showNotification");
@@ -41,6 +44,7 @@ const showNotification = inject("showNotification");
 const accounts = ref([]);
 
 const setMonobankAccounts = async () => {
+    log.debug("Fetching Monobank accounts...");
     try {
         const baseUrl = await getBaseUrl();
 
@@ -52,11 +56,12 @@ const setMonobankAccounts = async () => {
 
         if (!response.ok) {
             const errorData = await response.json();
-            // Only show error if we're explicitly trying to fetch (not on initial mount)
+            log.error("GET /monobank/client-info failed:", errorData);
             throw new Error(errorData.error || "Failed to fetch client info");
         }
 
         const result = await response.json();
+        log.debug("GET /monobank/client-info response:", result);
 
         // Ensure accounts exist and have valid data
         const accountsData = result.accounts || [];
@@ -67,7 +72,9 @@ const setMonobankAccounts = async () => {
             const typeB = b?.type || "";
             return typeA.localeCompare(typeB);
         });
+        log.debug("Loaded", accountsData.length, "Monobank accounts");
     } catch (error) {
+        log.error("Failed to fetch accounts:", error);
         accounts.value = [];
         // Silently fail - tokens might not be configured yet
     }
@@ -75,14 +82,17 @@ const setMonobankAccounts = async () => {
 
 // Check if tokens exist on mount and fetch accounts if they do
 onMounted(async () => {
+    log.debug("Component mounted, checking for tokens...");
     try {
         const result = await window.electronAPI.loadTokens();
-        // Only fetch accounts if Monobank token exists
         if (result.tokens?.monobankToken) {
+            log.debug("Monobank token found, fetching accounts");
             await setMonobankAccounts();
+        } else {
+            log.debug("No Monobank token configured, skipping account fetch");
         }
     } catch (error) {
-        // Silently fail if tokens can't be loaded
+        log.warn("Could not load tokens:", error);
     }
 });
 
