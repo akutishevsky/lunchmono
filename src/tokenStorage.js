@@ -146,6 +146,37 @@ export const migrateTokensToSafeStorage = () => {
     }
 };
 
+// ===== Debug Mode Storage =====
+
+const DEBUG_MODE_KEY = "debugMode";
+
+/**
+ * Save debug mode setting
+ * @param {boolean} enabled - Whether debug mode is enabled
+ * @returns {Object} Result with success status
+ */
+export const saveDebugMode = (enabled) => {
+    try {
+        store.set(DEBUG_MODE_KEY, !!enabled);
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+};
+
+/**
+ * Load debug mode setting
+ * @returns {Object} Result with enabled boolean
+ */
+export const loadDebugMode = () => {
+    try {
+        const enabled = store.get(DEBUG_MODE_KEY, false);
+        return { success: true, enabled: !!enabled };
+    } catch (error) {
+        return { success: false, error: error.message, enabled: false };
+    }
+};
+
 // ===== Account Mappings Storage =====
 
 const ACCOUNT_MAPPINGS_KEY = "accountMappings";

@@ -83,7 +83,10 @@ import AccountsMapping from "./AccountsMapping.vue";
 import Settings from "./Settings.vue";
 import Notification from "./Notification.vue";
 
-import { ref, provide } from "vue";
+import { ref, provide, onMounted } from "vue";
+import { initLogger, createLogger } from "../scripts/logger.js";
+
+const log = createLogger("Main");
 
 const isAccountsMappingOpen = ref(false);
 const isSettingsOpen = ref(false);
@@ -94,6 +97,11 @@ const activeTab = ref("manual"); // 'manual' or 'auto'
 const selectAccountRef = ref(null);
 const syncRef = ref(null);
 const autoImportRef = ref(null);
+
+onMounted(async () => {
+    await initLogger();
+    log.debug("App initialized, debug mode is ON");
+});
 
 // Notification state
 const notificationVisible = ref(false);
@@ -122,6 +130,7 @@ const closeSettings = () => {
  * @param {boolean} isError - Whether this is an error (red) or success (green) notification
  */
 const showNotification = (message, isError = false) => {
+    log.debug("Notification:", isError ? "ERROR" : "INFO", "-", message);
     notificationMessage.value = message;
     notificationIsError.value = isError;
     notificationVisible.value = true;
@@ -137,14 +146,14 @@ const hideNotification = () => {
 };
 
 const onTokensSaved = async () => {
-    // Refresh accounts after tokens are saved
+    log.debug("Tokens saved, refreshing accounts...");
     if (selectAccountRef.value) {
         await selectAccountRef.value.refreshAccounts();
     }
 };
 
 const onMappingsSaved = async () => {
-    // Refresh mappings in Sync component after saving
+    log.debug("Mappings saved, refreshing Sync component...");
     if (syncRef.value) {
         await syncRef.value.refreshMappings();
     }

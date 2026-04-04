@@ -12,4 +12,6 @@ contextBridge.exposeInMainWorld("electronAPI", {
     onServerReady: (callback) => ipcRenderer.on("server-ready", callback),
     saveAccountMappings: (mappings) => ipcRenderer.invoke("save-account-mappings", mappings),
     loadAccountMappings: () => ipcRenderer.invoke("load-account-mappings"),
+    saveDebugMode: (enabled) => ipcRenderer.invoke("save-debug-mode", enabled),
+    loadDebugMode: () => ipcRenderer.invoke("load-debug-mode"),
 });

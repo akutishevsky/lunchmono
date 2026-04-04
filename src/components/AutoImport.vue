@@ -121,6 +121,9 @@ import {
     dateToUnixTimestamp,
     buildTransactionPayload,
 } from "../scripts/transactionUtils.js";
+import { createLogger } from "../scripts/logger.js";
+
+const log = createLogger("AutoImport");
 
 const props = defineProps({
     dateFrom: { type: String, default: "" },
@@ -175,6 +178,7 @@ function getStatusIcon(status) {
 
 // Generic API fetch with error handling
 async function fetchData(endpoint, dataKey = null) {
+    log.debug("fetchData:", endpoint);
     const baseUrl = await getBaseUrl();
     if (!baseUrl) {
         throw new Error("Base URL is not available");
@@ -184,23 +188,29 @@ async function fetchData(endpoint, dataKey = null) {
     const result = await response.json();
 
     if (!response.ok) {
+        log.error("fetchData failed:", endpoint, result);
         throw new Error(result.error || `Failed to fetch ${endpoint}`);
     }
 
+    log.debug("GET", endpoint, "response:", result);
     return dataKey ? result[dataKey] || [] : result;
 }
 
 // Load account mappings
 async function loadAccountMappings() {
+    log.debug("Loading account mappings via IPC...");
     const result = await window.electronAPI.loadAccountMappings();
     if (!result.success) {
+        log.error("Failed to load mappings:", result.error);
         throw new Error(result.error || "Failed to load mappings");
     }
+    log.debug("Account mappings loaded:", Object.keys(result.mappings || {}).length, "mapping(s)");
     return result.mappings || {};
 }
 
 // Build queue from mappings
 function buildAccountQueue(mappings) {
+    log.debug("Building account queue from", Object.keys(mappings).length, "mapping(s)");
     const queue = [];
 
     for (const [monobankId, lunchMoneyAssetId] of Object.entries(mappings)) {
@@ -212,6 +222,7 @@ function buildAccountQueue(mappings) {
         );
 
         if (!monobankAccount || !lunchMoneyAsset) {
+            log.warn("Skipping mapping - monobankId:", monobankId, "- account or asset not found");
             continue; // Skip if either account not found
         }
 
@@ -229,11 +240,13 @@ function buildAccountQueue(mappings) {
         });
     }
 
+    log.debug("Account queue built:", queue.length, "account(s)");
     return queue;
 }
 
 // Fetch transactions for a specific account
 async function fetchTransactionsForAccount(accountId) {
+    log.debug("Fetching transactions for account:", accountId);
     const baseUrl = await getBaseUrl();
     const fromTimestamp = dateToUnixTimestamp(props.dateFrom);
     const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
@@ -242,14 +255,19 @@ async function fetchTransactionsForAccount(accountId) {
     const response = await fetch(url);
     if (!response.ok) {
         const errorData = await response.json();
+        log.error("GET /monobank/transactions failed for", accountId, ":", errorData);
         throw new Error(errorData.error || "Failed to fetch transactions");
     }
 
-    return await response.json();
+    const result = await response.json();
+    log.debug("GET /monobank/transactions response for", accountId, ":", result);
+    log.debug("Fetched", result.length, "transactions for account:", accountId);
+    return result;
 }
 
 // Sync transactions to Lunch Money
 async function syncTransactionsToLunchMoney(transactions, lunchMoneyAsset, monobankAccount) {
+    log.debug("Syncing", transactions.length, "transactions for asset:", lunchMoneyAsset.display_name);
     const baseUrl = await getBaseUrl();
     if (!baseUrl) {
         throw new Error("Base URL is not available");
@@ -258,6 +276,7 @@ async function syncTransactionsToLunchMoney(transactions, lunchMoneyAsset, monob
     const payload = transactions.map((tx) =>
         buildTransactionPayload(tx, lunchMoneyAsset, monobankAccount)
     );
+    log.debug("POST /lunchmoney/transactions payload:", payload);
 
     const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {
         method: "POST",
@@ -275,9 +294,27 @@ async function syncTransactionsToLunchMoney(transactions, lunchMoneyAsset, monob
         } catch {
             errorMessage = responseText || errorMessage;
         }
+        log.error("POST /lunchmoney/transactions failed:", errorMessage);
         throw new Error(errorMessage);
     }
 
+    let responseData;
+    try {
+        responseData = JSON.parse(responseText);
+    } catch {
+        responseData = responseText;
+    }
+    log.debug("POST /lunchmoney/transactions response:", responseData);
+
+    // Lunch Money may return 200 with error array in the body
+    if (responseData?.error) {
+        const errorMsg = Array.isArray(responseData.error)
+            ? responseData.error.join("; ")
+            : responseData.error;
+        throw new Error(errorMsg);
+    }
+
+    log.debug("Synced", payload.length, "transactions successfully");
     return payload.length;
 }
 
@@ -312,16 +349,19 @@ async function processQueue() {
 
         currentIndex.value = i;
         const account = accountQueue.value[i];
+        log.debug("Processing queue: account", i + 1, "of", accountQueue.value.length);
 
         try {
             // Phase: Fetching
             currentPhase.value = "fetching";
+            log.debug("Phase: FETCHING -", account.accountName);
             const transactions = await fetchTransactionsForAccount(account.monobankId);
 
             if (isCancelled.value) break;
 
             // Check if no transactions
             if (!transactions || transactions.length === 0) {
+                log.warn("No transactions for", account.accountName, "- skipping");
                 results.value.push({
                     accountId: account.monobankId,
                     accountName: account.accountName,
@@ -333,6 +373,7 @@ async function processQueue() {
                 // Still need to wait for rate limit before next account
                 if (i < accountQueue.value.length - 1 && !isCancelled.value) {
                     currentPhase.value = "waiting";
+                    log.debug("Phase: WAITING - 60s cooldown before next account");
                     await waitWithCountdown(60);
                 }
                 continue;
@@ -340,6 +381,7 @@ async function processQueue() {
 
             // Phase: Syncing
             currentPhase.value = "syncing";
+            log.debug("Phase: SYNCING -", account.accountName);
             const syncedCount = await syncTransactionsToLunchMoney(
                 transactions,
                 account.lunchMoneyAsset,
@@ -357,9 +399,11 @@ async function processQueue() {
             // Phase: Waiting (if not last account)
             if (i < accountQueue.value.length - 1 && !isCancelled.value) {
                 currentPhase.value = "waiting";
+                log.debug("Phase: WAITING - 60s cooldown before next account");
                 await waitWithCountdown(60);
             }
         } catch (error) {
+            log.error("Error processing", account.accountName, ":", error);
             results.value.push({
                 accountId: account.monobankId,
                 accountName: account.accountName,
@@ -371,17 +415,21 @@ async function processQueue() {
             // Still need to wait for rate limit before next account (if fetch was made)
             if (i < accountQueue.value.length - 1 && !isCancelled.value) {
                 currentPhase.value = "waiting";
+                log.debug("Phase: WAITING - 60s cooldown before next account");
                 await waitWithCountdown(60);
             }
         }
     }
 
+    log.debug("Queue processing complete. Results:", results.value.length, "account(s)");
     currentPhase.value = "completed";
     isRunning.value = false;
 }
 
 // Start auto import
 async function startAutoImport() {
+    log.debug("startAutoImport called - dates:", props.dateFrom, "to", props.dateTo);
+
     // Validate dates
     if (!props.dateFrom || !props.dateTo) {
         showNotification("Please select a date range first", true);
@@ -392,6 +440,7 @@ async function startAutoImport() {
         // Load mappings
         const mappings = await loadAccountMappings();
         if (!mappings || Object.keys(mappings).length === 0) {
+            log.warn("No account mappings configured");
             showNotification(
                 "No account mappings configured. Please set up mappings in Accounts Mapping first.",
                 true
@@ -411,6 +460,7 @@ async function startAutoImport() {
         // Build queue
         const queue = buildAccountQueue(mappings);
         if (queue.length === 0) {
+            log.warn("No valid account mappings found after building queue");
             showNotification(
                 "No valid account mappings found. Please verify your mappings.",
                 true
@@ -425,11 +475,13 @@ async function startAutoImport() {
         isCancelled.value = false;
         isRunning.value = true;
 
+        log.debug("Starting auto import for", queue.length, "account(s)");
         showNotification(`Starting auto import for ${queue.length} account(s)`, false);
 
         // Start processing
         await processQueue();
     } catch (error) {
+        log.error("startAutoImport error:", error);
         showNotification(`Error: ${error.message}`, true);
         currentPhase.value = "idle";
         isRunning.value = false;
@@ -438,12 +490,14 @@ async function startAutoImport() {
 
 // Cancel auto import
 function cancelAutoImport() {
+    log.debug("Auto import cancelled by user");
     isCancelled.value = true;
     showNotification("Import cancelled. Showing partial results.", false);
 }
 
 // Reset for new import
 function resetAutoImport() {
+    log.debug("Auto import state reset");
     currentPhase.value = "idle";
     isRunning.value = false;
     isCancelled.value = false;

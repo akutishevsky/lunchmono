@@ -90,6 +90,9 @@
 <script setup>
 import { ref, watch, inject } from "vue";
 import { getBaseUrl } from "../scripts/utils";
+import { createLogger } from "../scripts/logger.js";
+
+const log = createLogger("AccountsMapping");
 
 const props = defineProps({
     isOpen: {
@@ -110,6 +113,7 @@ watch(
     () => props.isOpen,
     async (isNowOpen) => {
         if (isNowOpen) {
+            log.debug("Modal opened, loading data...");
             await loadMappings();
             await setMonobankAccounts();
             await setLunchMoneyAssets();
@@ -118,6 +122,7 @@ watch(
 );
 
 const setMonobankAccounts = async () => {
+    log.debug("Fetching Monobank accounts...");
     try {
         const baseUrl = await getBaseUrl();
 
@@ -130,12 +135,15 @@ const setMonobankAccounts = async () => {
         const result = await response.json();
 
         if (!response.ok) {
+            log.error("GET /monobank/client-info failed:", result);
             showNotification(
                 result.error || "Failed to fetch client info",
                 true,
             );
             return;
         }
+
+        log.debug("GET /monobank/client-info response:", result);
 
         // Ensure accounts exist and have valid data
         const accountsData = result.accounts || [];
@@ -146,13 +154,16 @@ const setMonobankAccounts = async () => {
             const typeB = b?.type || "";
             return typeA.localeCompare(typeB);
         });
+        log.debug("Loaded", accountsData.length, "Monobank accounts");
     } catch (error) {
+        log.error("Error fetching accounts:", error);
         showNotification(`Error fetching accounts: ${error}`, true);
         monobankAccounts.value = [];
     }
 };
 
 const setLunchMoneyAssets = async () => {
+    log.debug("Fetching Lunch Money assets...");
     try {
         const baseUrl = await getBaseUrl();
 
@@ -165,6 +176,7 @@ const setLunchMoneyAssets = async () => {
         const result = await response.json();
 
         if (!response.ok) {
+            log.error("GET /lunchmoney/assets failed:", result);
             showNotification(
                 result.error || "Failed to fetch Lunch Money Assets",
                 true,
@@ -172,10 +184,14 @@ const setLunchMoneyAssets = async () => {
             return;
         }
 
+        log.debug("GET /lunchmoney/assets response:", result);
+
         const assets = result.assets || [];
 
         lunchMoneyAssets.value = assets;
+        log.debug("Loaded", assets.length, "Lunch Money assets");
     } catch (error) {
+        log.error("Error fetching assets:", error);
         showNotification(`Error fetching assets: ${error}`, true);
         lunchMoneyAssets.value = [];
     }
@@ -185,18 +201,22 @@ const setLunchMoneyAssets = async () => {
  * Load account mappings from electron storage
  */
 const loadMappings = async () => {
+    log.debug("Loading account mappings...");
     try {
         const result = await window.electronAPI.loadAccountMappings();
 
         if (result.success) {
             accountMappings.value = result.mappings;
+            log.debug("Loaded mappings:", Object.keys(result.mappings).length, "mapping(s)");
         } else {
+            log.error("Failed to load mappings:", result.error);
             showNotification(
                 result.error || "Failed to load account mappings",
                 true,
             );
         }
     } catch (error) {
+        log.error("Error loading mappings:", error);
         showNotification(`Error loading mappings: ${error.message}`, true);
     }
 };
@@ -205,6 +225,7 @@ const loadMappings = async () => {
  * Save account mappings to electron storage
  */
 const saveMappings = async () => {
+    log.debug("Saving account mappings...");
     isSaving.value = true;
 
     try {
@@ -215,15 +236,18 @@ const saveMappings = async () => {
             await window.electronAPI.saveAccountMappings(plainMappings);
 
         if (result.success) {
+            log.debug("Mappings saved successfully");
             showNotification("Account mappings saved successfully!", false);
             emit("mappings-saved"); // Notify parent that mappings were saved
         } else {
+            log.error("Failed to save mappings:", result.error);
             showNotification(
                 result.error || "Failed to save account mappings",
                 true,
             );
         }
     } catch (error) {
+        log.error("Error saving mappings:", error);
         showNotification(`Error: ${error.message}`, true);
     } finally {
         isSaving.value = false;
