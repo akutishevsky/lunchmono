@@ -107,7 +107,7 @@ export function buildTransactionPayload(transaction, lunchMoneyAsset, monobankAc
         asset_id: lunchMoneyAsset?.id,
         notes: transaction.description,
         category_id: null,
-        external_id: null,
+        external_id: transaction.id || null,
         recurring_id: null,
         status: "uncleared",
         tags: null,
