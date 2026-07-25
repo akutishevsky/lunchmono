@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, inject, onMounted, computed, onBeforeUnmount } from "vue";
+import { ref, inject, onMounted, computed, onBeforeUnmount, watch } from "vue";
 import { getBaseUrl } from "../scripts/utils.js";
 import {
     formatAmount,
@@ -99,6 +99,9 @@ const props = defineProps({
 
 // State
 const transactions = ref([]);
+// Account the loaded transactions belong to. Guards against syncing one
+// account's rows against another account's currency after the dropdown changes.
+const loadedAccountId = ref("");
 const lunchMoneyAssets = ref([]);
 const monobankAccounts = ref([]);
 const showNotification = inject("showNotification");
@@ -129,6 +132,16 @@ const tooltipMessage = computed(() =>
 );
 
 const accountMappings = ref(null);
+
+// Drop loaded transactions when the account changes: they belong to the old
+// account and would be posted against the new account's currency and asset.
+watch(
+    () => props.selectedAccount,
+    () => {
+        transactions.value = [];
+        loadedAccountId.value = "";
+    },
+);
 
 // Initialize - removed onMounted data fetching to avoid errors when tokens are missing
 // Data will be fetched when user explicitly requests transactions
@@ -245,6 +258,7 @@ async function showTransactions() {
         }
 
         transactions.value = await response.json();
+        loadedAccountId.value = props.selectedAccount;
         log.debug("GET /monobank/transactions response:", transactions.value);
         log.debug("Fetched", transactions.value.length, "transactions");
         showNotification(
@@ -303,6 +317,45 @@ async function syncTransactions() {
         return;
     }
 
+    if (loadedAccountId.value !== props.selectedAccount) {
+        showNotification(
+            'The selected account changed. Please click "Show transactions" again before syncing.',
+            true,
+        );
+        return;
+    }
+
+    // Accounts and assets are only loaded by "Show transactions". Nothing is
+    // fetched here on purpose: Monobank allows 1 request per 60 seconds and a
+    // stray call would break the cooldown UX.
+    if (!selectedMonobankAccount.value) {
+        showNotification(
+            'Monobank account details are not loaded. Please click "Show transactions" first.',
+            true,
+        );
+        return;
+    }
+
+    if (!selectedLMAsset.value) {
+        showNotification(
+            "No Lunch Money asset is mapped to the selected account. Please add the mapping in Accounts mapping.",
+            true,
+        );
+        return;
+    }
+
+    // Built separately from the request: buildTransactionPayload throws with a
+    // user-facing message (currency mismatch, missing amount, ...) that must
+    // reach the notification unprefixed.
+    let payload;
+    try {
+        payload = transactions.value.map(buildTransactionPayloadLocal);
+    } catch (error) {
+        log.error("buildTransactionPayload failed:", error);
+        showNotification(error.message || "Failed to build transactions", true);
+        return;
+    }
+
     try {
         const baseUrl = await getBaseUrl();
         if (!baseUrl) {
@@ -310,8 +363,6 @@ async function syncTransactions() {
             return;
         }
 
-        // Build payload for all transactions
-        const payload = transactions.value.map(buildTransactionPayloadLocal);
         log.debug("POST /lunchmoney/transactions payload:", payload);
 
         const response = await fetch(`${baseUrl}/lunchmoney/transactions`, {

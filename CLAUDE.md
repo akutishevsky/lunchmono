@@ -148,6 +148,14 @@ The application integrates with two external APIs through the embedded Hono serv
 - **Assets endpoint**: Fetches all assets (bank accounts, credit cards) with balances and institution info
 - **Transactions endpoint**: Inserts transactions into Lunch Money (implementation in progress)
 
+**Currency handling (`src/scripts/transactionUtils.js`)** — this is subtle and easy to reintroduce bugs into:
+- Monobank's `transaction.amount` is **always** in the *account's* currency, already converted at Monobank's real rate. `transaction.operationAmount` + `transaction.currencyCode` describe the **other** currency (the merchant's, or the transfer counterparty's). The official Monobank docs mislabel `currencyCode` as the account currency — it is not.
+- The account's own currency is only available from `/personal/client-info` → `accounts[].currencyCode`, never from a statement item.
+- Lunch Money interprets the posted `amount` as being denominated in the `currency` field and **never rescales it**; when they disagree it applies its own daily FX rate, drifting the asset balance. So `buildTransactionPayload` always posts `transaction.amount` with `currency` = the Monobank account's currency. Never post `operationAmount`.
+- A mapping whose Lunch Money asset currency differs from the Monobank account currency is rejected (`assertAssetCurrencyMatches`) rather than synced.
+- The original foreign leg and derived rate are preserved in `notes`, since Lunch Money has no field for them.
+- Unit tests: `npm test` (vitest). `src/scripts/transactionUtils.test.js` pins the FOP currency-exchange chain.
+
 **Common Patterns**:
 - Components use `getBaseUrl()` utility (`src/scripts/utils.js`) to fetch dynamic server URL via IPC
 - All API calls go through the embedded server, keeping sensitive tokens in main process
