@@ -5,6 +5,52 @@ All notable changes to Lunch Mono will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-07-25
+
+### Fixed
+
+- **Currency Exchange Amounts** - Cross-currency transactions were imported with the wrong amount. The payload sent Monobank's *operation* currency as the transaction currency while the amount was in the *account's* currency, so Lunch Money re-converted it using its own daily exchange rate instead of the rate Monobank actually applied. Selling USD from a FOP account left a residual balance on the FOP UAH account and credited the destination card the wrong amount. Transactions are now always posted in the account's own currency, at Monobank's real rate
+- **Date Range Boundaries** - The "From" date was parsed as UTC midnight, which is 03:00 in Kyiv, so transactions made in the first three hours of that day were silently never fetched
+- **Transaction Dates** - Dates were formatted in UTC, so a transaction at 00:30 local time was recorded in Lunch Money as the previous day. Both the range and the recorded date now use local time
+- **Stale Transactions After Switching Accounts** - Loaded transactions are now cleared when the account selection changes, instead of being syncable against a different account's currency and asset
+- **Unsupported Currencies** - The currency table grew from 4 codes to 32; an unrecognised code previously aborted the entire batch
+
+### Added
+
+- **Account Selection for Auto Import** - Choose which mapped accounts take part in a run, with each account's currency, destination asset and an estimated run time. Since Monobank allows one request per 60 seconds, importing fewer accounts is the only thing that actually shortens a run
+- **Currency Mismatch Detection** - A Monobank account mapped to a Lunch Money asset in a different currency is now rejected with an explicit error, and surfaced in the Auto Import account list before any request is spent. Previously it silently corrupted the asset balance
+- **Exchange Rate in Notes** - Foreign-currency transactions record the original amount and the derived rate in the transaction notes, which Lunch Money has no dedicated field for
+- **Unit Tests** - `npm test` runs a vitest suite over the transaction utilities, covering the multi-leg FOP currency-exchange chain and the date boundaries
+
+### Changed
+
+- Auto Import waits out the remainder of the Monobank rate limit measured from the last request, rather than restarting a flat 60 seconds after every account. Time spent syncing to Lunch Money now counts towards the window, the last account costs nothing, and a cooldown left over from a previous run is honoured
+- Loaded accounts persist between Auto Import runs, so starting a new import does not spend another rate-limited request
+- The FOP account special-case in amount handling was removed; it was compensating for the currency bug and is no longer needed
+- The server health endpoint reports the real application version instead of a hardcoded `1.0.0`
+
+### Notes
+
+- Transactions imported before this release are **not** corrected automatically. Cross-currency amounts and early-morning dates need re-importing or fixing in the Lunch Money interface
+- Re-importing a date range will now include transactions between 00:00 and 03:00 that were previously skipped
+
+## [1.3.1] - 2026-05-31
+
+### Added
+
+- **Debug Mode** - Optional debug logging toggle in Settings, persisted via electron-store, with tagged console output across all components and the server utilities
+
+### Fixed
+
+- **Duplicate Transactions** - Monobank's transaction ID is now used as the Lunch Money `external_id`, preventing the same transaction being inserted twice across repeated syncs
+- **Silent Sync Failures** - Lunch Money errors returned with an HTTP 200 status are now detected and reported instead of being treated as success
+- **Transaction Date Format** - Dates are sent to Lunch Money in `YYYY-MM-DD` format
+
+### Changed
+
+- README expanded with build instructions
+- Dependencies updated
+
 ## [1.3.0] - 2026-02-05
 
 ### Added
