@@ -3,6 +3,9 @@ import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import monobank from "./routes/monobank.js";
 import lunchMoney from "./routes/lunchMoney.js";
+// Read from package.json so the health check cannot drift out of date, as the
+// previously hardcoded "1.0.0" had since the first release
+import { version } from "../../package.json";
 
 const app = new Hono();
 
@@ -17,7 +20,7 @@ app.get("/", (c) => {
     return c.json({
         status: "ok",
         message: "Hono server is running",
-        version: "1.0.0",
+        version,
     });
 });
 
