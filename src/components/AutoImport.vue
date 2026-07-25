@@ -5,18 +5,94 @@
             <div v-if="currentPhase === 'idle'">
                 <div class="content mb-4">
                     <p>
-                        Automatically sync transactions from <strong>all mapped accounts</strong> for the selected date range.
+                        Sync transactions from your <strong>mapped accounts</strong> for the selected date range.
                     </p>
                     <p class="has-text-grey is-size-7">
-                        Due to Monobank API rate limits, there will be a 60-second wait between each account.
+                        Monobank allows one request per 60 seconds, so every extra
+                        account adds about a minute to the run. Import only the
+                        accounts you need.
                     </p>
                 </div>
+
                 <button
+                    v-if="!accountsLoaded"
                     class="button is-primary is-fullwidth"
-                    @click="startAutoImport"
+                    :class="{ 'is-loading': isLoadingAccounts }"
+                    :disabled="isLoadingAccounts"
+                    @click="loadAccounts"
                 >
-                    🚀 Start Auto Import
+                    📋 Load accounts
                 </button>
+
+                <div v-else>
+                    <!-- Mappings that cannot be imported at all -->
+                    <div
+                        v-if="accountProblems.length > 0"
+                        class="notification is-danger is-light py-3"
+                    >
+                        <p class="has-text-weight-semibold mb-2">
+                            Cannot be imported:
+                        </p>
+                        <p
+                            v-for="problem in accountProblems"
+                            :key="problem.accountId"
+                            class="is-size-7"
+                        >
+                            {{ problem.accountName }} — {{ problem.message }}
+                        </p>
+                    </div>
+
+                    <div v-if="availableAccounts.length > 0">
+                        <div
+                            class="is-flex is-justify-content-space-between is-align-items-center mb-2"
+                        >
+                            <span class="has-text-weight-semibold">
+                                Accounts to import
+                            </span>
+                            <span class="is-size-7">
+                                <a @click="selectAllAccounts">All</a> ·
+                                <a @click="selectNoAccounts">None</a> ·
+                                <a @click="loadAccounts">Reload</a>
+                            </span>
+                        </div>
+
+                        <label
+                            v-for="account in availableAccounts"
+                            :key="account.monobankId"
+                            class="panel-block"
+                        >
+                            <input
+                                v-model="selectedAccountIds"
+                                type="checkbox"
+                                :value="account.monobankId"
+                            />
+                            <span class="ml-2">{{ account.accountName }}</span>
+                            <span class="tag is-light ml-2">
+                                {{ account.currency.toUpperCase() }}
+                            </span>
+                            <span class="has-text-grey is-size-7 ml-2">
+                                → {{ account.assetName }}
+                            </span>
+                        </label>
+
+                        <p class="has-text-grey is-size-7 mt-3">
+                            {{ selectedAccountIds.length }} of
+                            {{ availableAccounts.length }} selected ·
+                            estimated {{ estimatedDuration }}
+                        </p>
+
+                        <button
+                            class="button is-primary is-fullwidth mt-3"
+                            :disabled="selectedAccountIds.length === 0"
+                            @click="startAutoImport"
+                        >
+                            🚀 Start Auto Import
+                        </button>
+                    </div>
+                    <p v-else class="has-text-grey">
+                        No account can be imported. Check your Accounts mapping.
+                    </p>
+                </div>
             </div>
 
             <!-- Running State -->
@@ -152,10 +228,28 @@ const results = ref([]);
 const lunchMoneyAssets = ref([]);
 const monobankAccounts = ref([]);
 
+// Account picker. Loaded once and reused across runs so that repeating an
+// import does not spend another rate-limited client-info request.
+const accountsLoaded = ref(false);
+const isLoadingAccounts = ref(false);
+const availableAccounts = ref([]);
+const accountProblems = ref([]); // mappings that cannot be imported at all
+const selectedAccountIds = ref([]);
+
 // Computed
 const currentAccountName = computed(() => {
     if (accountQueue.value.length === 0) return "";
     return accountQueue.value[currentIndex.value]?.accountName || "";
+});
+
+// Each account after the first costs one rate-limit window
+const estimatedDuration = computed(() => {
+    const count = selectedAccountIds.value.length;
+    if (count <= 1) return "under a minute";
+    const minutes = Math.round(
+        ((count - 1) * MONOBANK_RATE_LIMIT_SECONDS) / 60
+    );
+    return `about ${minutes} minute${minutes === 1 ? "" : "s"}`;
 });
 
 // Status helpers
@@ -217,10 +311,15 @@ async function loadAccountMappings() {
     return result.mappings || {};
 }
 
-// Build queue from mappings
+/**
+ * Turn the saved mappings into importable accounts.
+ * @returns {{importable: Array, problems: Array}} importable accounts, and
+ *   mappings that cannot be imported at all with the reason why
+ */
 function buildAccountQueue(mappings) {
     log.debug("Building account queue from", Object.keys(mappings).length, "mapping(s)");
     const queue = [];
+    const problems = [];
 
     for (const [monobankId, lunchMoneyAssetId] of Object.entries(mappings)) {
         const monobankAccount = monobankAccounts.value.find(
@@ -239,22 +338,21 @@ function buildAccountQueue(mappings) {
         const maskedPan = monobankAccount.maskedPan?.[0] || "";
         const lastFour = maskedPan.slice(-4);
         const accountName = `${monobankAccount.type?.toUpperCase() || "Account"} (****${lastFour})`;
+        const assetName =
+            lunchMoneyAsset.display_name || lunchMoneyAsset.name || lunchMoneyAsset.id;
 
         // A currency mismatch is an actionable configuration error, not a
-        // missing mapping: report it in the results table instead of syncing
-        // amounts that would corrupt the asset balance.
+        // missing mapping: surface it instead of syncing amounts that would
+        // corrupt the asset balance.
+        let currency;
         try {
-            assertAssetCurrencyMatches(
-                getAccountCurrency(monobankAccount),
-                lunchMoneyAsset
-            );
+            currency = getAccountCurrency(monobankAccount);
+            assertAssetCurrencyMatches(currency, lunchMoneyAsset);
         } catch (error) {
             log.warn("Skipping mapping - monobankId:", monobankId, "-", error.message);
-            results.value.push({
+            problems.push({
                 accountId: monobankId,
                 accountName,
-                status: "error",
-                transactionCount: null,
                 message: error.message,
             });
             continue;
@@ -264,13 +362,19 @@ function buildAccountQueue(mappings) {
             monobankId,
             lunchMoneyAssetId,
             accountName,
+            assetName,
+            currency,
             monobankAccount,
             lunchMoneyAsset,
         });
     }
 
-    log.debug("Account queue built:", queue.length, "account(s)");
-    return queue;
+    log.debug(
+        "Account queue built:",
+        queue.length, "importable,",
+        problems.length, "unusable"
+    );
+    return { importable: queue, problems };
 }
 
 // Fetch transactions for a specific account
@@ -405,6 +509,12 @@ async function processQueue() {
         const account = accountQueue.value[i];
         log.debug("Processing queue: account", i + 1, "of", accountQueue.value.length);
 
+        // Waiting before the request rather than after it means the last
+        // account costs nothing, a previous run's cooldown is still honoured,
+        // and time spent syncing to Lunch Money counts towards the window
+        await waitForRateLimit();
+        if (isCancelled.value) break;
+
         try {
             // Phase: Fetching
             currentPhase.value = "fetching";
@@ -423,12 +533,6 @@ async function processQueue() {
                     transactionCount: 0,
                     message: "No transactions found",
                 });
-
-                // The fetch already spent the rate-limited request, so the
-                // cooldown is still owed even with nothing to import
-                if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                    await waitForRateLimit();
-                }
                 continue;
             }
 
@@ -448,11 +552,6 @@ async function processQueue() {
                 transactionCount: syncedCount,
                 message: "Synced successfully",
             });
-
-            // Phase: Waiting (if not last account)
-            if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                await waitForRateLimit();
-            }
         } catch (error) {
             log.error("Error processing", account.accountName, ":", error);
             results.value.push({
@@ -462,12 +561,6 @@ async function processQueue() {
                 transactionCount: null,
                 message: error.message,
             });
-
-            // Measured from the last request that actually went out, so an
-            // error raised before the fetch does not restart the cooldown
-            if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                await waitForRateLimit();
-            }
         }
     }
 
@@ -476,18 +569,12 @@ async function processQueue() {
     isRunning.value = false;
 }
 
-// Start auto import
-async function startAutoImport() {
-    log.debug("startAutoImport called - dates:", props.dateFrom, "to", props.dateTo);
-
-    // Validate dates
-    if (!props.dateFrom || !props.dateTo) {
-        showNotification("Please select a date range first", true);
-        return;
-    }
+// Load the mapped accounts so the user can choose which ones to import
+async function loadAccounts() {
+    log.debug("loadAccounts called");
+    isLoadingAccounts.value = true;
 
     try {
-        // Load mappings
         const mappings = await loadAccountMappings();
         if (!mappings || Object.keys(mappings).length === 0) {
             log.warn("No account mappings configured");
@@ -507,24 +594,73 @@ async function startAutoImport() {
         monobankAccounts.value = accounts;
         lunchMoneyAssets.value = assets;
 
-        // Reset results before building the queue: buildAccountQueue reports
-        // unsyncable mappings (currency mismatches) into it
-        results.value = [];
+        const { importable, problems } = buildAccountQueue(mappings);
+        availableAccounts.value = importable;
+        accountProblems.value = problems;
+        // Default to importing everything; the user unchecks what they skip
+        selectedAccountIds.value = importable.map((account) => account.monobankId);
+        accountsLoaded.value = true;
 
-        // Build queue
-        const queue = buildAccountQueue(mappings);
-        if (queue.length === 0) {
-            log.warn("No valid account mappings found after building queue");
+        if (importable.length === 0) {
             showNotification(
-                results.value.length > 0
-                    ? "No account could be synced. See the details below."
+                problems.length > 0
+                    ? "No account can be imported. See the details below."
                     : "No valid account mappings found. Please verify your mappings.",
                 true
             );
-            // Show the results table when there is something to explain
-            currentPhase.value = results.value.length > 0 ? "completed" : "idle";
-            return;
         }
+    } catch (error) {
+        log.error("loadAccounts error:", error);
+        showNotification(`Error: ${error.message}`, true);
+    } finally {
+        isLoadingAccounts.value = false;
+    }
+}
+
+function selectAllAccounts() {
+    selectedAccountIds.value = availableAccounts.value.map(
+        (account) => account.monobankId
+    );
+}
+
+function selectNoAccounts() {
+    selectedAccountIds.value = [];
+}
+
+// Start auto import for the selected accounts
+async function startAutoImport() {
+    log.debug("startAutoImport called - dates:", props.dateFrom, "to", props.dateTo);
+
+    // Validate dates
+    if (!props.dateFrom || !props.dateTo) {
+        showNotification("Please select a date range first", true);
+        return;
+    }
+
+    if (!accountsLoaded.value) {
+        await loadAccounts();
+        if (!accountsLoaded.value) return;
+    }
+
+    const queue = availableAccounts.value.filter((account) =>
+        selectedAccountIds.value.includes(account.monobankId)
+    );
+
+    if (queue.length === 0) {
+        showNotification("Please select at least one account to import", true);
+        return;
+    }
+
+    try {
+        // Carry the unusable mappings into the results so the final table
+        // still explains why they were left out
+        results.value = accountProblems.value.map((problem) => ({
+            accountId: problem.accountId,
+            accountName: problem.accountName,
+            status: "error",
+            transactionCount: null,
+            message: problem.message,
+        }));
 
         // Initialize state
         accountQueue.value = queue;
@@ -562,6 +698,8 @@ function resetAutoImport() {
     currentIndex.value = 0;
     countdownSeconds.value = 0;
     results.value = [];
+    // The loaded accounts and the selection are kept on purpose: reloading
+    // them would spend another rate-limited client-info request
 }
 
 // Expose methods for parent component
