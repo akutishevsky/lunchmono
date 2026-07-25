@@ -6,6 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is an Electron application called "Lunch Mono" built with Vue 3, Vite, and Hono. The application features a desktop UI for transaction management with an embedded Node.js server running inside the Electron main process.
 
+## Development Workflow
+
+**IMPORTANT: Before implementing any changes, create a new git branch.** Never commit work directly to `main`.
+
+```bash
+# Create and switch to a new branch before starting work
+git checkout -b <type>/<short-description>
+```
+
+Use a descriptive branch name prefixed by the kind of change, following the convention already in the repo history (e.g. `fix/external-id-dedup`, `feat/sync-transactions`, `chore/update-deps`).
+
 ## Architecture
 
 ### Dual Process Structure
