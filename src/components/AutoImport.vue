@@ -56,8 +56,8 @@
                 <div v-if="currentPhase === 'waiting'" class="mb-4">
                     <progress
                         class="progress is-warning"
-                        :value="60 - countdownSeconds"
-                        max="60"
+                        :value="countdownTotal - countdownSeconds"
+                        :max="countdownTotal"
                     ></progress>
                     <p class="has-text-grey is-size-7">
                         Waiting {{ countdownSeconds }} seconds (Monobank rate limit)
@@ -127,6 +127,9 @@ import { createLogger } from "../scripts/logger.js";
 
 const log = createLogger("AutoImport");
 
+// Monobank allows one statement request per 60 seconds
+const MONOBANK_RATE_LIMIT_SECONDS = 60;
+
 const props = defineProps({
     dateFrom: { type: String, default: "" },
     dateTo: { type: String, default: "" },
@@ -141,6 +144,10 @@ const accountQueue = ref([]); // Array of {monobankId, lunchMoneyAssetId, accoun
 const currentIndex = ref(0);
 const currentPhase = ref("idle"); // 'idle'|'fetching'|'syncing'|'waiting'|'completed'
 const countdownSeconds = ref(0);
+const countdownTotal = ref(MONOBANK_RATE_LIMIT_SECONDS);
+// When the last Monobank statement request went out, so the cooldown can be
+// measured from it rather than restarted after every account
+const lastMonobankRequestAt = ref(0);
 const results = ref([]);
 const lunchMoneyAssets = ref([]);
 const monobankAccounts = ref([]);
@@ -274,6 +281,10 @@ async function fetchTransactionsForAccount(accountId) {
     const toTimestamp = dateToUnixTimestamp(props.dateTo, 1);
     const url = `${baseUrl}/monobank/transactions/${accountId}/${fromTimestamp}/${toTimestamp}`;
 
+    // Stamp before the request: the rate limit counts attempts, so a failed
+    // fetch still owes the full cooldown
+    lastMonobankRequestAt.value = Date.now();
+
     const response = await fetch(url);
     if (!response.ok) {
         const errorData = await response.json();
@@ -343,6 +354,7 @@ async function syncTransactionsToLunchMoney(transactions, lunchMoneyAsset, monob
 // Wait with countdown (supports cancellation)
 function waitWithCountdown(seconds) {
     return new Promise((resolve) => {
+        countdownTotal.value = seconds;
         countdownSeconds.value = seconds;
 
         const interval = setInterval(() => {
@@ -360,6 +372,26 @@ function waitWithCountdown(seconds) {
             }
         }, 1000);
     });
+}
+
+/**
+ * Wait out whatever is left of Monobank's rate limit, measured from the last
+ * statement request. Time already spent syncing to Lunch Money counts towards
+ * it, so this is usually shorter than a flat 60s — and is skipped entirely
+ * when the cooldown has already elapsed.
+ */
+async function waitForRateLimit() {
+    const elapsed = (Date.now() - lastMonobankRequestAt.value) / 1000;
+    const remaining = Math.ceil(MONOBANK_RATE_LIMIT_SECONDS - elapsed);
+
+    if (!lastMonobankRequestAt.value || remaining <= 0) {
+        log.debug("Rate-limit cooldown already elapsed, continuing immediately");
+        return;
+    }
+
+    currentPhase.value = "waiting";
+    log.debug("Phase: WAITING -", remaining, "s cooldown before next account");
+    await waitWithCountdown(remaining);
 }
 
 // Main processing loop
@@ -392,11 +424,10 @@ async function processQueue() {
                     message: "No transactions found",
                 });
 
-                // Still need to wait for rate limit before next account
+                // The fetch already spent the rate-limited request, so the
+                // cooldown is still owed even with nothing to import
                 if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                    currentPhase.value = "waiting";
-                    log.debug("Phase: WAITING - 60s cooldown before next account");
-                    await waitWithCountdown(60);
+                    await waitForRateLimit();
                 }
                 continue;
             }
@@ -420,9 +451,7 @@ async function processQueue() {
 
             // Phase: Waiting (if not last account)
             if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                currentPhase.value = "waiting";
-                log.debug("Phase: WAITING - 60s cooldown before next account");
-                await waitWithCountdown(60);
+                await waitForRateLimit();
             }
         } catch (error) {
             log.error("Error processing", account.accountName, ":", error);
@@ -434,11 +463,10 @@ async function processQueue() {
                 message: error.message,
             });
 
-            // Still need to wait for rate limit before next account (if fetch was made)
+            // Measured from the last request that actually went out, so an
+            // error raised before the fetch does not restart the cooldown
             if (i < accountQueue.value.length - 1 && !isCancelled.value) {
-                currentPhase.value = "waiting";
-                log.debug("Phase: WAITING - 60s cooldown before next account");
-                await waitWithCountdown(60);
+                await waitForRateLimit();
             }
         }
     }
