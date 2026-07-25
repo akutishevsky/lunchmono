@@ -120,6 +120,8 @@ import { getBaseUrl } from "../scripts/utils.js";
 import {
     dateToUnixTimestamp,
     buildTransactionPayload,
+    getAccountCurrency,
+    assertAssetCurrencyMatches,
 } from "../scripts/transactionUtils.js";
 import { createLogger } from "../scripts/logger.js";
 
@@ -230,6 +232,26 @@ function buildAccountQueue(mappings) {
         const maskedPan = monobankAccount.maskedPan?.[0] || "";
         const lastFour = maskedPan.slice(-4);
         const accountName = `${monobankAccount.type?.toUpperCase() || "Account"} (****${lastFour})`;
+
+        // A currency mismatch is an actionable configuration error, not a
+        // missing mapping: report it in the results table instead of syncing
+        // amounts that would corrupt the asset balance.
+        try {
+            assertAssetCurrencyMatches(
+                getAccountCurrency(monobankAccount),
+                lunchMoneyAsset
+            );
+        } catch (error) {
+            log.warn("Skipping mapping - monobankId:", monobankId, "-", error.message);
+            results.value.push({
+                accountId: monobankId,
+                accountName,
+                status: "error",
+                transactionCount: null,
+                message: error.message,
+            });
+            continue;
+        }
 
         queue.push({
             monobankId,
@@ -457,21 +479,28 @@ async function startAutoImport() {
         monobankAccounts.value = accounts;
         lunchMoneyAssets.value = assets;
 
+        // Reset results before building the queue: buildAccountQueue reports
+        // unsyncable mappings (currency mismatches) into it
+        results.value = [];
+
         // Build queue
         const queue = buildAccountQueue(mappings);
         if (queue.length === 0) {
             log.warn("No valid account mappings found after building queue");
             showNotification(
-                "No valid account mappings found. Please verify your mappings.",
+                results.value.length > 0
+                    ? "No account could be synced. See the details below."
+                    : "No valid account mappings found. Please verify your mappings.",
                 true
             );
+            // Show the results table when there is something to explain
+            currentPhase.value = results.value.length > 0 ? "completed" : "idle";
             return;
         }
 
         // Initialize state
         accountQueue.value = queue;
         currentIndex.value = 0;
-        results.value = [];
         isCancelled.value = false;
         isRunning.value = true;
 
