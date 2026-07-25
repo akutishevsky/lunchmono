@@ -113,15 +113,50 @@ export function formatAmount(amount, currency) {
 }
 
 /**
- * Convert date string to Unix timestamp
+ * Convert a date string to a Unix timestamp at **local** midnight.
+ *
+ * `new Date("2026-07-25")` is parsed as UTC midnight, which in Kyiv is 03:00
+ * local — so a range starting on the 25th silently skipped everything the user
+ * spent between midnight and 03:00 that morning. Building the date from its
+ * parts keeps it in the same time base the user picked it in.
+ *
  * @param {string} dateString - Date in YYYY-MM-DD format
  * @param {number} offsetDays - Days to add to the date (default: 0)
  * @returns {number} Unix timestamp in seconds
+ * @throws {Error} If the date is not in YYYY-MM-DD format
  */
 export function dateToUnixTimestamp(dateString, offsetDays = 0) {
-    const date = new Date(dateString);
-    if (offsetDays) date.setDate(date.getDate() + offsetDays);
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(dateString ?? "");
+    if (!match) {
+        throw new Error(`Expected a YYYY-MM-DD date, got "${dateString}"`);
+    }
+
+    const [, year, month, day] = match.map(Number);
+    // Day overflow rolls into the next month on its own
+    const date = new Date(year, month - 1, day + offsetDays);
     return Math.floor(date.getTime() / 1000);
+}
+
+/**
+ * Format a Unix timestamp as a YYYY-MM-DD date in the **local** timezone.
+ *
+ * `toISOString()` formats in UTC, which moved transactions made between
+ * midnight and 03:00 Kyiv back onto the previous day in Lunch Money.
+ *
+ * @param {number} timestamp - Unix timestamp in seconds
+ * @returns {string} Date in YYYY-MM-DD format
+ * @throws {Error} If the timestamp is not a usable number
+ */
+export function formatLocalDate(timestamp) {
+    const date = new Date(timestamp * 1000);
+    if (typeof timestamp !== "number" || Number.isNaN(date.getTime())) {
+        throw new Error(`Invalid transaction time: ${timestamp}`);
+    }
+
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
 }
 
 /**
@@ -237,7 +272,7 @@ export function buildTransactionPayload(transaction, lunchMoneyAsset, monobankAc
     assertAssetCurrencyMatches(accountCurrency, lunchMoneyAsset);
 
     return {
-        date: new Date(transaction.time * 1000).toISOString().split("T")[0],
+        date: formatLocalDate(transaction.time),
         amount: calculateAmount(transaction, accountCurrency),
         payee: transaction.description?.slice(0, 140) || "",
         currency: accountCurrency,
