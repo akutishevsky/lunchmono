@@ -5,5 +5,6 @@ export default defineConfig({
         // These are pure functions with no DOM dependency
         environment: "node",
         include: ["src/**/*.test.js"],
+        setupFiles: ["src/scripts/test-setup.js"],
     },
 });

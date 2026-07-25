@@ -6,6 +6,7 @@ import {
     getOperationCurrency,
     formatAmount,
     dateToUnixTimestamp,
+    formatLocalDate,
     calculateAmount,
     assertAssetCurrencyMatches,
     buildNotes,
@@ -34,6 +35,15 @@ const JPY = 392;
 // 2026-07-25T00:00:00Z and 2026-07-25T10:30:00Z, as Unix seconds
 const JUL_25_2026_UTC = 1784937600;
 const JUL_25_2026_1030_UTC = 1784975400;
+
+// Local midnight on 2026-07-25. The suite pins TZ to Europe/Kyiv (see
+// test-setup.js), which is UTC+3 in July -- three hours ahead of UTC midnight.
+const JUL_25_2026_LOCAL = JUL_25_2026_UTC - 3 * 3600;
+
+/** Unix seconds for a wall-clock time in the pinned local timezone. */
+function localSeconds(year, month, day, hour = 0, minute = 0) {
+    return new Date(year, month - 1, day, hour, minute).getTime() / 1000;
+}
 
 const accounts = {
     uahCard: { id: "card-uah", type: "white", currencyCode: UAH },
@@ -181,22 +191,101 @@ describe("formatAmount", () => {
 // --- dateToUnixTimestamp ----------------------------------------------------
 
 describe("dateToUnixTimestamp", () => {
-    it("converts a YYYY-MM-DD date to a Unix timestamp in seconds", () => {
-        expect(dateToUnixTimestamp("2026-07-25")).toBe(JUL_25_2026_UTC);
+    it("resolves the date to local midnight, not UTC midnight", () => {
+        expect(dateToUnixTimestamp("2026-07-25")).toBe(JUL_25_2026_LOCAL);
+        // The old UTC parse landed at 03:00 Kyiv, so a range starting on the
+        // 25th silently skipped everything spent that morning before 03:00
+        expect(dateToUnixTimestamp("2026-07-25")).not.toBe(JUL_25_2026_UTC);
     });
 
     it("treats a zero offset as no shift", () => {
-        expect(dateToUnixTimestamp("2026-07-25", 0)).toBe(JUL_25_2026_UTC);
+        expect(dateToUnixTimestamp("2026-07-25", 0)).toBe(JUL_25_2026_LOCAL);
     });
 
     it.each([
-        [1, JUL_25_2026_UTC + 86400],
-        [-1, JUL_25_2026_UTC - 86400],
-        [7, JUL_25_2026_UTC + 7 * 86400],
-        [-30, JUL_25_2026_UTC - 30 * 86400],
+        [1, JUL_25_2026_LOCAL + 86400],
+        [-1, JUL_25_2026_LOCAL - 86400],
+        [7, JUL_25_2026_LOCAL + 7 * 86400],
+        [-30, JUL_25_2026_LOCAL - 30 * 86400],
     ])("shifts by %i day(s)", (offsetDays, expected) => {
         expect(dateToUnixTimestamp("2026-07-25", offsetDays)).toBe(expected);
     });
+
+    it("rolls the offset over month and year boundaries", () => {
+        expect(dateToUnixTimestamp("2026-07-31", 1)).toBe(
+            dateToUnixTimestamp("2026-08-01"),
+        );
+        expect(dateToUnixTimestamp("2026-12-31", 1)).toBe(
+            dateToUnixTimestamp("2027-01-01"),
+        );
+    });
+
+    it("keeps day arithmetic on local midnights across a DST change", () => {
+        // Ukraine switches to EEST at 03:00 local on Sunday 2026-03-29, so two
+        // calendar days here span only 47 hours of real time. The old code
+        // parsed in UTC but added days in local time, mixing the two.
+        const before = dateToUnixTimestamp("2026-03-28");
+        const after = dateToUnixTimestamp("2026-03-30");
+        expect(after - before).toBe(47 * 3600);
+        expect(dateToUnixTimestamp("2026-03-28", 2)).toBe(after);
+    });
+
+    it("covers the whole selected day when used as an exclusive upper bound", () => {
+        const from = dateToUnixTimestamp("2026-07-25");
+        const to = dateToUnixTimestamp("2026-07-25", 1);
+        expect(to - from).toBe(86400);
+
+        // The transaction the UTC range used to miss
+        const earlyMorning = localSeconds(2026, 7, 25, 0, 30);
+        expect(earlyMorning).toBeGreaterThanOrEqual(from);
+        expect(earlyMorning).toBeLessThan(to);
+        expect(earlyMorning).toBeLessThan(JUL_25_2026_UTC);
+    });
+
+    it.each([null, undefined, "", "25-07-2026", "2026-7-25", "2026-07-25T00:00:00Z"])(
+        "throws for malformed date %p",
+        (value) => {
+            expect(() => dateToUnixTimestamp(value)).toThrow(/YYYY-MM-DD/);
+        },
+    );
+});
+
+// --- formatLocalDate --------------------------------------------------------
+
+describe("formatLocalDate", () => {
+    it.each([
+        ["just after local midnight", localSeconds(2026, 7, 25, 0, 30), "2026-07-25"],
+        ["midday", localSeconds(2026, 7, 25, 12, 0), "2026-07-25"],
+        ["just before local midnight", localSeconds(2026, 7, 25, 23, 45), "2026-07-25"],
+    ])("formats %s as %s", (_label, timestamp, expected) => {
+        expect(formatLocalDate(timestamp)).toBe(expected);
+    });
+
+    it("keeps an early-morning transaction on its own local day", () => {
+        const earlyMorning = localSeconds(2026, 7, 25, 0, 30);
+        expect(formatLocalDate(earlyMorning)).toBe("2026-07-25");
+        // What the old toISOString path produced for the same instant
+        expect(new Date(earlyMorning * 1000).toISOString().slice(0, 10)).toBe(
+            "2026-07-24",
+        );
+    });
+
+    it("zero-pads single-digit months and days", () => {
+        expect(formatLocalDate(localSeconds(2026, 1, 5, 9, 0))).toBe("2026-01-05");
+    });
+
+    it("round-trips with dateToUnixTimestamp", () => {
+        expect(formatLocalDate(dateToUnixTimestamp("2026-07-25"))).toBe("2026-07-25");
+        expect(formatLocalDate(dateToUnixTimestamp("2026-03-30"))).toBe("2026-03-30");
+        expect(formatLocalDate(dateToUnixTimestamp("2027-01-01"))).toBe("2027-01-01");
+    });
+
+    it.each([undefined, null, NaN, "abc", {}])(
+        "throws for invalid time %p",
+        (value) => {
+            expect(() => formatLocalDate(value)).toThrow(/Invalid transaction time/);
+        },
+    );
 });
 
 // --- calculateAmount --------------------------------------------------------
@@ -707,17 +796,19 @@ describe("buildTransactionPayload", () => {
         ).toBe("");
     });
 
-    it("derives the date from the transaction time in UTC", () => {
+    it("dates the payload from the transaction time in local time", () => {
+        // Both fall on the same local day. Under the old toISOString path the
+        // 00:30 one was reported as 2026-07-24.
         expect(
             buildTransactionPayload(
-                tx({ time: JUL_25_2026_UTC }),
+                tx({ time: localSeconds(2026, 7, 25, 0, 30) }),
                 assets.uah,
                 accounts.uahCard,
             ).date,
         ).toBe("2026-07-25");
         expect(
             buildTransactionPayload(
-                tx({ time: JUL_25_2026_UTC + 86399 }),
+                tx({ time: localSeconds(2026, 7, 25, 23, 45) }),
                 assets.uah,
                 accounts.uahCard,
             ).date,
